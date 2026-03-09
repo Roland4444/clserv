@@ -1,0 +1,142 @@
+(require :asdf)
+(asdf:load-system :hunchentoot)
+
+(defpackage :hello
+  (:use :cl :hunchentoot)
+  (:export #:start-server #:main #:plus #:test-plus))
+
+(in-package :hello)
+
+;;; Функция суммирования
+(defun plus (a b) (+ a b))
+
+(defun test-plus ()
+  (format t "Running tests for PLUS...~%")
+  (assert (= (plus 2 3) 5))
+  (assert (= (plus -1 1) 0))
+  (assert (= (plus 0 0) 0))
+  (format t "All tests passed.~%")
+  t)
+
+;;; Работа с файлом lnk
+(defparameter *link-file* "lnk")
+
+(defun read-links ()
+  (if (probe-file *link-file*)
+      (with-open-file (f *link-file* :direction :input)
+        (loop for line = (read-line f nil nil) while line collect line))
+      '()))
+
+(defun write-links (content)
+  (with-open-file (f *link-file* :direction :output :if-exists :supersede)
+    (write-string content f)))
+
+;;; HTML-страницы
+(defun index-html ()
+  "<!DOCTYPE html>
+<html>
+<head>
+    <title>Моё приложение</title>
+    <script src=\"//api.bitrix24.com/api/v1/\"></script>
+</head>
+<body>
+    <h1>Приложение загружено!</h1>
+    <script>
+        BX24.init(function() {
+            console.log('BX24 инициализирована');
+            BX24.installFinish();
+        });
+    </script>
+</body>
+</html>")
+
+(defun up-form-html ()
+  "<!DOCTYPE html>
+<html>
+<head><title>Update Link</title></head>
+<body>
+    <h2>Update Link</h2>
+    <form method=\"POST\" action=\"/updatelnk\">
+        <label for=\"content\">New content:</label>
+        <input type=\"text\" name=\"content\" value=\"\" size=\"50\">
+        <br/>
+        <input type=\"submit\" value=\"Update\">
+    </form>
+</body>
+</html>")
+
+(defun chat-html ()
+  (let ((path "static/chat.html"))
+    (if (probe-file path)
+        (with-open-file (f path :direction :input)
+          (let ((content (make-string (file-length f))))
+            (read-sequence content f)
+            content))
+        "<h1>ERROR: chat.html not found</h1>")))
+
+;;; Хендлеры
+(hunchentoot:define-easy-handler (index :uri "/") ()
+  (setf (hunchentoot:content-type*) "text/html")
+  (index-html))
+
+(hunchentoot:define-easy-handler (up :uri "/up") ()
+  (setf (hunchentoot:content-type*) "text/html")
+  (up-form-html))
+
+(hunchentoot:define-easy-handler (lnk :uri "/lnk") ()
+  (setf (hunchentoot:content-type*) "text/html")
+  (let ((links (read-links)))
+    (if links
+        (format nil "<h3>HI there!</h3><br>~{~a~}"
+                (loop for l in links collect (format nil "<a href='~a'>~a</a><br>" l l)))
+        "<h3>HI there!</h3><br>No links")))
+
+(hunchentoot:define-easy-handler (updatelnk :uri "/updatelnk" :default-request-type :post) (content)
+  (if content
+      (progn (write-links content) "Link updated successfully.")
+      (progn (setf (hunchentoot:return-code*) 400) "Missing content parameter")))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") ()
+  (setf (hunchentoot:content-type*) "text/html")
+  (chat-html))
+
+;;; Раздача статики
+(defun static-handler ()
+  (let* ((uri (hunchentoot:request-uri*))
+         (path (subseq uri 8))) ; после "/static/"
+    (handler-case
+        (let ((full-path (make-pathname :name path :directory '(:relative "static"))))
+          (if (and (probe-file full-path)
+                   (not (uiop:directory-pathname-p full-path)))
+              (progn
+                (setf (hunchentoot:content-type*)
+                      (or (hunchentoot:mime-type full-path) "application/octet-stream"))
+                (with-open-file (stream full-path :element-type '(unsigned-byte 8))
+                  (let ((data (make-array (file-length stream) :element-type '(unsigned-byte 8))))
+                    (read-sequence data stream)
+                    data)))
+              (progn
+                (setf (hunchentoot:return-code*) 404)
+                "File not found")))
+      (error ()
+        (setf (hunchentoot:return-code*) 500)
+        "Internal server error"))))
+
+(push (hunchentoot:create-prefix-dispatcher "/static/" 'static-handler)
+      hunchentoot:*dispatch-table*)
+
+;;; Запуск сервера
+(defun start-server (&key (port 11111))
+  (let ((acceptor (make-instance 'hunchentoot:easy-acceptor :port port)))
+    (hunchentoot:start acceptor)
+    (format t "Server running at http://localhost:~d/~%" port)
+    (format t "Static files served from /static/~%")
+    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat~%")
+    acceptor))
+
+(defun main ()
+  (start-server)
+  (loop (sleep 3600)))
+;;; Запуск теста
+;;; (test-plus)
+  ;;sbcl --load hello.lisp      --eval '(sb-ext:save-lisp-and-die "hello-server" :toplevel #'\''hello::main :executable t)'
