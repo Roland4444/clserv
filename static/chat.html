@@ -24,7 +24,7 @@
             backdrop-filter: blur(5px);
             pointer-events: none;
         }
-        #form-container {
+        /* #form-container {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -41,7 +41,38 @@
             max-height: 90vh;
             overflow-y: auto;
             pointer-events: auto;
-            }
+            } */
+
+        #form-container {
+            position: fixed;           /* фиксируем, чтобы не прокручивалась */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 380px;
+            max-width: 90vw;           /* на узких экранах не шире 90% ширины окна */
+            max-height: 90vh;          /* не выше 90% высоты окна */
+            background: rgba(30, 30, 40, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 100;
+            overflow-y: auto;          /* внутренний скролл, если контент не влезает */
+            pointer-events: auto;
+            box-sizing: border-box;
+        }
+
+/* Для совсем маленьких экранов уменьшим отступы */
+        @media (max-width: 480px) {
+            #form-container {
+            padding: 15px;
+            width: 95vw;
+        }
+        }
+
+
         #form-container h2 {
             margin-top: 0;
             text-align: center;
