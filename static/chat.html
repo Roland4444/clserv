@@ -2,6 +2,8 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Lisp заявка в Bitrix24</title>
     <style>
         body {
@@ -24,11 +26,10 @@
             backdrop-filter: blur(5px);
             pointer-events: none;
         }
-        /* #form-container {
+        #form-container {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 20px;
+            left: 20px;
             width: 380px;
             background: rgba(30, 30, 40, 0.85);
             backdrop-filter: blur(10px);
@@ -41,60 +42,25 @@
             max-height: 90vh;
             overflow-y: auto;
             pointer-events: auto;
-            } */
-
-        #form-container {
-            position: fixed;           /* фиксируем, чтобы не прокручивалась */
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 380px;
-            max-width: 90vw;           /* на узких экранах не шире 90% ширины окна */
-            max-height: 90vh;          /* не выше 90% высоты окна */
-            background: rgba(30, 30, 40, 0.85);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 25px;
-            color: white;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.2);
-            z-index: 100;
-            overflow-y: auto;          /* внутренний скролл, если контент не влезает */
-            pointer-events: auto;
-            box-sizing: border-box;
-
-            border: 3px solid greenyellow !important;
-
         }
-
-/* Для совсем маленьких экранов уменьшим отступы */
-        @media (max-width: 480px) {
+        /* Адаптация для мобильных */
+        @media (max-width: 600px) {
             #form-container {
-            padding: 15px;
-            width: 95vw;
+                width: 90%;
+                left: 5%;
+                top: 10px;
+                padding: 15px;
+            }
+            #user-info {
+                font-size: 14px;
+                top: 10px;
+                right: 10px;
+                padding: 5px 10px;
+            }
         }
-        }
-
-
-        #form-container h2 {
-            margin-top: 0;
-            text-align: center;
-            color: #ffd966;
-            font-family: 'Courier New', monospace;
-            letter-spacing: 2px;
-            border-bottom: 1px solid #555;
-            padding-bottom: 10px;
-        }
-        .field-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #ccc;
-            font-size: 0.9rem;
-        }
+        /* Остальные стили (поля, кнопки, статус) без изменений */
+        .field-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #ccc; font-size: 0.9rem; }
         input, select, textarea {
             width: 100%;
             padding: 10px 12px;
@@ -116,9 +82,7 @@
             color: #aaa;
             cursor: not-allowed;
         }
-        select option {
-            background: #333;
-        }
+        select option { background: #333; }
         button {
             width: 100%;
             padding: 12px;
@@ -132,12 +96,8 @@
             transition: background 0.2s, transform 0.1s;
             margin-top: 10px;
         }
-        button:hover {
-            background: #4a8cd4;
-        }
-        button:active {
-            transform: scale(0.98);
-        }
+        button:hover { background: #4a8cd4; }
+        button:active { transform: scale(0.98); }
         .status {
             margin-top: 15px;
             padding: 10px;
@@ -146,19 +106,9 @@
             font-weight: 600;
             display: none;
         }
-        .success {
-            background: rgba(40, 167, 69, 0.7);
-            border: 1px solid #28a745;
-        }
-        .error {
-            background: rgba(220, 53, 69, 0.7);
-            border: 1px solid #dc3545;
-        }
-        .info-note {
-            font-size: 0.8rem;
-            color: #aaa;
-            margin-top: 5px;
-        }
+        .success { background: rgba(40, 167, 69, 0.7); border: 1px solid #28a745; }
+        .error { background: rgba(220, 53, 69, 0.7); border: 1px solid #dc3545; }
+        .info-note { font-size: 0.8rem; color: #aaa; margin-top: 5px; }
         #three-canvas {
             position: fixed;
             top: 0;
@@ -166,15 +116,6 @@
             width: 100%;
             height: 100%;
             z-index: 1;
-        }
-        /* Адаптация для мобильных */
-        @media (max-width: 600px) {
-            #form-container {
-                width: 90%;
-                left: 5%;
-                top: 10px;
-                padding: 15px;
-            }
         }
     </style>
     <script src="//api.bitrix24.com/api/v1/"></script>
