@@ -26,8 +26,9 @@
         }
         #form-container {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 380px;
             background: rgba(30, 30, 40, 0.85);
             backdrop-filter: blur(10px);
@@ -40,7 +41,7 @@
             max-height: 90vh;
             overflow-y: auto;
             pointer-events: auto;
-        }
+            }
         #form-container h2 {
             margin-top: 0;
             text-align: center;
@@ -260,35 +261,78 @@
                 const description = document.getElementById('request-description').value.trim();
 
                 if (!title || !description) {
-                    showStatus('Заполните тему и описание', false);
+                        showStatus('Заполните тему и описание', false);
                     return;
                 }
 
-                // Формируем полное описание с категорией
-                const fullDescription = `[${categoryText}]\n${description}`;
-
-                // Параметры задачи (RESPONSIBLE_ID можно заменить на нужного сотрудника, например, текущего)
-                const taskFields = {
-                    TITLE: title,
-                    DESCRIPTION: fullDescription,
-                    RESPONSIBLE_ID: currentUser.ID,          // ответственный - текущий пользователь (можно изменить)
-                    CREATED_BY: currentUser.ID,
-                    // Можно добавить DEADLINE, PRIORITY, GROUP_ID и т.д. по необходимости
+    // Данные для отправки на свой сервер
+                const payload = {
+                    title: title,
+                    description: description,
+                    category: categoryText,
+                    userName: document.getElementById('user-name').value,
+                    userPhone: document.getElementById('user-phone').value,
+                    userEmail: document.getElementById('user-email').value
                 };
 
-                // Отправляем через BX24
-                BX24.callMethod('tasks.task.add', { fields: taskFields }, function(result) {
-                    if (result.error()) {
-                        console.error('Ошибка создания задачи:', result.error());
-                        showStatus('Ошибка: ' + result.error().ex, false);
-                    } else {
-                        console.log('Задача создана:', result.data());
-                        showStatus('✅ Заявка успешно отправлена!', true);
-                        // Очистить поля
-                        document.getElementById('request-title').value = '';
-                        document.getElementById('request-description').value = '';
-                    }
-                });
+    // Адрес твоего сервера (например, тот же, где крутится Hunchentoot)
+                const serverUrl = '/create-task';  // или полный URL типа 'http://localhost:12200/create-task'
+
+                fetch(serverUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => response.json())
+                .then(data => {
+                if (data.error) {
+                    showStatus('Ошибка сервера: ' + data.error, false);
+                } else {
+                            showStatus('✅ Заявка успешно отправлена!', true);
+                            document.getElementById('request-title').value = '';
+                            document.getElementById('request-description').value = '';
+                        }
+                })
+                .catch(error => showStatus('Ошибка сети: ' + error.message, false));
+
+
+
+
+                // const categorySelect = document.getElementById('request-category');
+                // const categoryText = categorySelect.options[categorySelect.selectedIndex].text;
+                // const title = document.getElementById('request-title').value.trim();
+                // const description = document.getElementById('request-description').value.trim();
+
+                // if (!title || !description) {
+                //     showStatus('Заполните тему и описание', false);
+                //     return;
+                // }
+
+                // // Формируем полное описание с категорией
+                // const fullDescription = `[${categoryText}]\n${description}`;
+
+                // // Параметры задачи (RESPONSIBLE_ID можно заменить на нужного сотрудника, например, текущего)
+                // const taskFields = {
+                //     TITLE: title,
+                //     DESCRIPTION: fullDescription,
+                //     RESPONSIBLE_ID: currentUser.ID,          // ответственный - текущий пользователь (можно изменить)
+                //     CREATED_BY: currentUser.ID,
+                //     // Можно добавить DEADLINE, PRIORITY, GROUP_ID и т.д. по необходимости
+                // };
+
+                // // Отправляем через BX24
+                // BX24.callMethod('tasks.task.add', { fields: taskFields }, function(result) {
+                //     if (result.error()) {
+                //         console.error('Ошибка создания задачи:', result.error());
+                //         showStatus('Ошибка: ' + result.error().ex, false);
+                //     } else {
+                //         console.log('Задача создана:', result.data());
+                //         showStatus('✅ Заявка успешно отправлена!', true);
+                //         // Очистить поля
+                //         document.getElementById('request-title').value = '';
+                //         document.getElementById('request-description').value = '';
+                //     }
+                // });
             });
 
             // --- Three.js: переливающийся куб с символом Lisp ---

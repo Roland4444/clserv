@@ -1,6 +1,6 @@
 (require :asdf)
 (asdf:load-system :hunchentoot)
-
+(asdf:load-system :cl-json)
 (defpackage :hello
   (:use :cl :hunchentoot)
   (:export #:start-server #:main #:plus #:test-plus))
@@ -100,10 +100,10 @@
   (setf (hunchentoot:content-type*) "text/html")
   (chat-html))
 
-;;; Раздача статики
+
 (defun static-handler ()
   (let* ((uri (hunchentoot:request-uri*))
-         (path (subseq uri 8))) ; после "/static/"
+         (path (subseq uri 8))) 
     (handler-case
         (let ((full-path (make-pathname :name path :directory '(:relative "static"))))
           (if (and (probe-file full-path)
@@ -125,7 +125,22 @@
 (push (hunchentoot:create-prefix-dispatcher "/static/" 'static-handler)
       hunchentoot:*dispatch-table*)
 
-;;; Запуск сервера
+(defun log-request (data)
+  (with-open-file (log-stream "requests.log"
+                               :direction :output
+                               :if-exists :append
+                               :if-does-not-exist :create)
+    (multiple-value-bind (second minute hour day month year)
+      (get-decoded-time)
+      (format log-stream "[~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d] ~a~%"
+              year month day hour minute second data))))
+
+(hunchentoot:define-easy-handler (create-task :uri "/create-task" :default-request-type :post) ()
+  (setf (hunchentoot:content-type*) "application/json")
+  (let* ((raw-data (hunchentoot:raw-post-data :force-text t)))
+    (log-request raw-data)
+    (cl-json:encode-json-to-string '((:status . "ok") (:message . "logged")))))      
+
 (defun start-server (&key (port 11111))
   (let ((acceptor (make-instance 'hunchentoot:easy-acceptor :port port)))
     (hunchentoot:start acceptor)
