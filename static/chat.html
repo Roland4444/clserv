@@ -6,27 +6,19 @@
 
     <title>Lisp заявка в Bitrix24</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        #user-info {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-            z-index: 200;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 20px;
-            border-radius: 30px;
-            backdrop-filter: blur(5px);
-            pointer-events: none;
-        }
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow-y: auto;  /* разрешаем прокрутку страницы */
+}
+
 #form-container {
+    position: absolute;
+    top: 80px;               /* отступ сверху */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 380px;
+    max-width: 90vw;
     background: rgba(30, 30, 40, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 20px;
@@ -34,15 +26,27 @@
     color: white;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     border: 1px solid rgba(255,255,255,0.2);
-    max-height: 80vh;
-    overflow-y: auto;
+    z-index: 100;
+    max-height: calc(100vh - 160px); /* высота с учётом top и отступа снизу */
+    overflow-y: auto;        /* прокрутка внутри формы, если контент не влезает */
+    pointer-events: auto;
     box-sizing: border-box;
 }
-/* медиа-запрос для мобильных */
+
 @media (max-width: 600px) {
     #form-container {
-        padding: 15px;
+        top: 60px;
         width: 90vw;
+        padding: 15px;
+        max-height: calc(100vh - 120px);
+    }
+}
+
+@media (max-width: 400px) {
+    #form-container {
+        top: 40px;
+        padding: 10px;
+        max-height: calc(100vh - 80px);
     }
 }
         /* Остальные стили (поля, кнопки, статус) без изменений */
