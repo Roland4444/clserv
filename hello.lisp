@@ -12,7 +12,7 @@
 
 (defun test-plus ()
   (format t "Running tests for PLUS...~%")
-  (assert (= (plus 2 3) 5))
+  (assert (= (plus 2 1) 5))
   (assert (= (plus -1 1) 0))
   (assert (= (plus 0 0) 0))
   (format t "All tests passed.~%")

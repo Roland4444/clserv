@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lisp Rainbow Cube</title>
+    <style>
+
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10; /* Убедитесь, что UI выше холста Three.js */
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #user-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #9725B3;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+            z-index: 100; 
+            background-color: rgba(255, 255, 255, 0.5); 
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none; 
+        }
+    </style>
+    <script src="//api.bitrix24.com/api/v1/"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three-js@79.0.0/three.min.js"></script>
+</head>
+<body>
+
+    <div id="user-info">Загрузка...</div>
+    <div id="ui-container">
+        <input type="text" id="myTextField" placeholder="Введите текст...">
+        <button id="myButton">Нажать</button>
+    </div>
+    <canvas id="three-canvas"></canvas>
+    <script>
+        window.onload = function() {
+
+            if (typeof BX24 !== 'undefined' && BX24) {
+                console.log('BX24 найдена, инициализируем...');
+                BX24.init(function() {
+                    console.log('✅ BX24 инициализирована!');
+                    BX24.installFinish();
+
+                    BX24.callMethod('user.current', {}, function(result) {
+                        if (result.error()) {
+                            console.error('Ошибка API:', result.error());
+                            document.getElementById('user-info').textContent = 'Не удалось загрузить данные';
+                        } else {
+                            const user = result.data();
+                            console.log('Пользователь:', user);
+
+                            const userName = user.NAME || '';
+                            const userLastName = user.LAST_NAME || '';
+                            const fullName = (userName + ' ' + userLastName).trim() || 'Без имени';
+
+                            document.getElementById('user-info').textContent = `Привет, ${fullName}!`;
+                        }
+                    });
+                });
+            } else {
+                console.error('❌ Библиотека BX24 не загружена. Приложение должно работать внутри iframe на портале Битрикс24.');
+            }
+
+            // --- three.js код: переливающийся куб с символом Lisp ---
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Создаём канвас с прозрачным фоном и белым текстом (символ λ и LISP)
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            
+            // Прозрачный фон
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Текст "λ" (лямбда) – символ Lisp
+            ctx.font = 'bold 400px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('λ', canvas.width/2, canvas.height/2 - 120);
+            
+            // Текст "LISP"
+            ctx.font = 'bold 200px Arial';
+            ctx.fillText('LISP', canvas.width/2, canvas.height/2 + 200);
+
+            // Создаём текстуру из канваса
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            // Материал с текстурой и прозрачностью – цвет фона будем менять динамически
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture,
+                transparent: true,
+                side: THREE.DoubleSide // чтобы текст был виден изнутри, если надо
+            });
+            
+            const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5); // чуть больше
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            let time = 0;
+
+            // Анимация: меняем цвет материала и вращаем куб
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                time += 0.01;
+                
+                // Изменяем цвет по HSV: hue меняется от 0 до 1, насыщенность 1, яркость 0.8
+                const hue = time % 1;
+                cube.material.color.setHSL(hue, 1, 0.8);
+                
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
+                
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Адаптация под изменение размера окна
+            window.addEventListener('resize', onWindowResize, false);
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        };
+    </script>
+</body>
+</html>
