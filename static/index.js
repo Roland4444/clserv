@@ -61,7 +61,7 @@
                             userInfoDiv.textContent = 'Не удалось загрузить данные';
                         } else {
                             const user = result.data();
-                            var info__ = 'data::'+data
+                            var info__ = 'data::'+user
                             console.log(info__)
                             alert(info__)
                             const userName = user.NAME || '';
