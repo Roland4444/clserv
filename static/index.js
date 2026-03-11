@@ -1,5 +1,17 @@
   (function() {
 
+            let formData = {
+                category: '',
+                title: '',
+                description: '',
+                file: null,
+                uuid: '',
+                user_id: '',
+                user_email: '',
+                user_phone: ''
+            };
+
+
                 var session_uuid = "";
                 function load_uuid(){
                        // alert('test ajax')
@@ -64,6 +76,10 @@
                             var info__ = 'data::'+ JSON.stringify(user, null, 2)
                             console.log(info__)
                             alert(info__)
+
+                            var email =  user.EMAIL
+                            var id__  =  user.ID
+                            var phone =  user.PERSONAL_MOBILE
                             const userName = user.NAME || '';
                             const userLastName = user.LAST_NAME || '';
                             const fullName = (userName + ' ' + userLastName).trim() || 'Без имени';
@@ -118,12 +134,7 @@
 
             // --- Состояние приложения ---
             let state = 0; // 0: выбор категории, 1: тема, 2: описание, 3: файл, 4: завершение, 5: подтверждение категории
-            let formData = {
-                category: '',
-                title: '',
-                description: '',
-                file: null
-            };
+
             let selectedCategory = null; // временная выбранная категория для подтверждения
 
             // --- Массив категорий с подробными описаниями ---
