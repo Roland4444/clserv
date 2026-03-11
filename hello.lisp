@@ -204,6 +204,13 @@
             (cl-json:encode-json json-data f)))
         ;; Если есть файл, сохраняем его
         (when uploaded-file
+          (format t "~%=== UPLOADED-FILE DEBUG ===~%")
+          (format t "uploaded-file: ~S~%" uploaded-file)
+          (format t "element 0: ~S~%" (first uploaded-file))
+          (format t "element 1: ~S~%" (second uploaded-file))
+          (format t "element 2: ~S~%" (third uploaded-file))
+          (format t "element 3: ~S~%" (fourth uploaded-file))
+          (format t "element 4: ~S~%" (fifth uploaded-file))
           ;; uploaded-file - это список вида: ("file" #P"/tmp/..." "original-name" "mime-type")
           (let* ((temp-path (second uploaded-file))    ; путь к временному файлу
                  (orig-name (third uploaded-file))     ; оригинальное имя файла
