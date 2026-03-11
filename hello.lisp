@@ -1,8 +1,9 @@
 (require :asdf)
 (asdf:load-system :hunchentoot)
 (asdf:load-system :cl-json)
+(asdf:load-system :frugal-uuid)
 (defpackage :hello
-  (:use :cl :hunchentoot)
+  (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus))
 
 (in-package :hello)
@@ -65,6 +66,21 @@
 </body>
 </html>")
 
+(defun tuid-html ()
+  (let ((my-uuid (fuuid:make-v1)))
+    ;; Возвращаем строку с UUID
+    ;; (format nil "!!!!!!!!!!!!!!!!!!~a" (fuuid:to-string my-uuid))))
+     (fuuid:to-string my-uuid)))
+
+;;        (format nil "~a" (fuuid:to-string my-uuid))))
+
+
+; (hunchentoot:define-easy-handler (index :uri "/tuid") ()
+;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+;   (tuid-html))
+
+
+
 (defun chat-html ()
   (let ((path "static/chat.html"))
     (if (probe-file path)
@@ -78,6 +94,20 @@
 (hunchentoot:define-easy-handler (index :uri "/") ()
   (setf (hunchentoot:content-type*) "text/html")
   (index-html))
+
+; (hunchentoot:define-easy-handler (index :uri "/tuid") ()
+;   (setf (hunchentoot:content-type*) "text/html")
+;   (tuid-html))  
+
+(hunchentoot:define-easy-handler (index :uri "/tuid") ()
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (tuid-html))
+
+(hunchentoot:define-easy-handler (reload :uri "/r") ()
+  (setf (hunchentoot:content-type*) "text/plain")
+  (load "hello.lisp")  ; Перезагружает этот же файл
+  "Reloaded")
+
 
 (hunchentoot:define-easy-handler (up :uri "/up") ()
   (setf (hunchentoot:content-type*) "text/html")
@@ -155,3 +185,9 @@
 ;;; Запуск теста
 ;;; (test-plus)
   ;;sbcl --load hello.lisp      --eval '(sb-ext:save-lisp-and-die "hello-server" :toplevel #'\''hello::main :executable t)'
+
+;;  sbcl --load hello.lisp      --eval '(hello:main)'
+
+
+;; sbcl --load hello.lisp      --eval '(hello:main)'
+;;  +/r   for hot reload
