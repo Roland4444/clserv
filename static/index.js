@@ -1,10 +1,46 @@
   (function() {
 
-            
-            function sendReq(){
+                var session_uuid = "";
+                function load_uuid(){
+                       // alert('test ajax')
+                        function getXmlHttp()
+                        {
+                            var xmlhttp;
+                            try {
+                            xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+                            } catch (e) {
+                            try {
+                                xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+                            } catch (E) {
+                                xmlhttp = false;
+                            }
+                            }
+                            if (!xmlhttp && typeof XMLHttpRequest!='undefined')  xmlhttp = new XMLHttpRequest();
+                           return xmlhttp;
+                        }
+                            var xhr = getXmlHttp()
+                           // var params= document.getElementById("params").value ;
+                            var request = "/tuid";///?params="//+params;
+                            xhr.open("GET", request, true);
+                            xhr.onreadystatechange=function(){
+                            //    alert(xhr.responseText);
+                                if (xhr.readyState != 4) return
+                                clearTimeout(xhrTimeout)
+                                if (xhr.status == 200) {
+                                  //  var json = JSON.parse(xhr.responseText);
+                             //       alert(xhr.responseText);
+                                    session_uuid =  xhr.responseText;
+                                } else {}
+                            }
+                           xhr.send("a=5&b=4");// xhr.send("a=5&b=4");
+                            var xhrTimeout = setTimeout( function(){ xhr.abort(); handleError("Timeout") }, 10000);
+                            function handleError(message) {
+                                alert("Ошибка: "+message)
+                            }
+                } 
+            load_uuid();
 
-            }
-
+            alert('ession uuid='+session_uuid )
             // Проверка загрузки CSS2DRenderer
             if (typeof THREE.CSS2DRenderer === 'undefined') {
                 console.error('CSS2DRenderer не загрузился. Проверьте подключение скриптов.');
@@ -200,6 +236,8 @@
                         `;
                         break;
                     case 4: // Завершение
+                        alert('session uuid='+session_uuid )
+
                         div.innerHTML = `
                             <h2>✅ Заявка создана!</h2>
                             <p>Спасибо, ваша заявка отправлена в IT-отдел.</p>
