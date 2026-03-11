@@ -203,22 +203,14 @@
                              :if-exists :supersede)
             (cl-json:encode-json json-data f)))
         ;; Если есть файл, сохраняем его
-        (when uploaded-file
-          (format t "~%=== UPLOADED-FILE DEBUG ===~%")
-          (format t "uploaded-file: ~S~%" uploaded-file)
-          (format t "element 0: ~S~%" (first uploaded-file))
-          (format t "element 1: ~S~%" (second uploaded-file))
-          (format t "element 2: ~S~%" (third uploaded-file))
-          (format t "element 3: ~S~%" (fourth uploaded-file))
-          (format t "element 4: ~S~%" (fifth uploaded-file))
-          ;; uploaded-file - это список вида: ("file" #P"/tmp/..." "original-name" "mime-type")
-          (let* ((temp-path (second uploaded-file))    ; путь к временному файлу
-                 (orig-name (third uploaded-file))     ; оригинальное имя файла
-                 (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
-                                                            :type nil)
-                                            request-dir)))
-            ;; Копируем временный файл в целевую папку
-            (uiop:copy-file temp-path dest-path)))
+(when uploaded-file
+  (let* ((temp-path (first uploaded-file))   ; путь к временному файлу (индекс 0)
+         (orig-name (second uploaded-file))  ; оригинальное имя файла (индекс 1)
+         (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
+                                                    :type nil)
+                                     request-dir)))
+    (format t "~%Saving file: ~A -> ~A~%" temp-path dest-path) ; опционально, для лога
+    (uiop:copy-file temp-path dest-path)))
         ;; Возвращаем успех
         (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
     (error (e)
