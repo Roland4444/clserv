@@ -201,7 +201,8 @@
           (with-open-file (f (merge-pathnames "data.json" request-dir)
                              :direction :output
                              :if-exists :supersede)
-            (cl-json:encode-json json-data f)))
+          ;;  (cl-json:encode-json json-data f)))
+            (cl-json:encode-json json-data f :with-unicode t)))
         ;; Если есть файл, сохраняем его
 (when uploaded-file
   (let* ((temp-path (first uploaded-file))   ; путь к временному файлу (индекс 0)
