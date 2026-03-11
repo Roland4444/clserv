@@ -1,0 +1,48 @@
+ curl -X POST   'https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/tasks.task.add'   -H 'Content-Type: application/json'   -d '{
+  "fields": {
+    "TITLE": "XXXXXX",   
+    "DESCRIPTION": "ZZZZZZZZZZZZ",
+    "RESPONSIBLE_ID": "1",
+    "CREATED_BY": "1",
+    "ACCOMPLICES": ["14"],
+    "AUDITORS": ["26"],
+    "DEADLINE": "2025-03-10T18:00:00+03:00",
+    "PRIORITY": "2",
+    "GROUP_ID": "10"
+  }
+}'
+
+TITLE  название
+DESCRIPTION   описание
+RESPONSIBLE_ID   исполнитель
+CREATED_BY  создан
+ACCOMPLICES   соисполнитель
+AUDITORS     наблюдатель
+
+
+
+GLPI::
+
+curl -X GET   -H "Content-Type: application/json"   -H "App-Token: mol6EowqT6ktBj8NLmTAvHXs6IJpDm0Pn5D9qL7c"   -H "Authorization: user_token K4YWmdgTWl5IBVwwHK5Cq2CQ7VXwkTE1OaC71dZf"   "http://192.168.1.98/apirest.php/initSession"
+{"session_token":"ovpe5u2rgdkhbnnded7umo6ko1"}
+
+curl -X POST   "http://192.168.1.98/apirest.php/Ticket?app_token=mol6EowqT6ktBj8NLmTAvHXs6IJpDm0Pn5D9qL7c"   -H "Content-Type: application/json"   -H "Session-Token: ovpe5u2rgdkhbnnded7umo6ko1"   -d '{
+    "input": {
+      "name": "zzzzzzzzzzzzzzzzzzzz",
+      "content": "xxxxxxxxxxxxxx",
+      "_users_id_requester": 2
+    }
+  }'
+{"id":4,"message":"Item successfully added: zzzzzzzzzzzzzzzzzzzz (4)"}
+
+
+Категория: оргтехника (подключение рабочего места, проблемы с печатью, замена картриджей, прочие проблемы)
+Категория ПО (установка ПО, плагинов, настройка работы с сервисами, например Госуслуги, проблемы с эксплуатацией ПО, ошибки при работе, ошибки при подключению к сервисам)
+Компьютеры (не включается, выключается, перезагружается, ошибки, модернизация, замена, тестирование, подключение различной периферии (наушники, микрофоны, разветвители))
+Сетевые работы (замена патчкордов, тестирование и выявление проблем на физическом уровне(тестером), замена сетевого оборудования)
+
+
+Счетчики: полная неработоспособность счетчиков, не работает телеметрия, проверка правильности показаний, поиск серийников, выгрузки показаний
+Провайдеры: новое подключение, неработоспособность существующего канала, замена юрлица в договоре
+Камеры: добавление камер, просмотр записей, неработоспособность камер, заявки на очистку
+Сотовая связь/покрытие: получение сим-карт, добавление личных данных, проверка покрытия на объекте, заявки на операторов для улучшения покрытия

@@ -80,6 +80,9 @@
                             var email =  user.EMAIL
                             var id__  =  user.ID
                             var phone =  user.PERSONAL_MOBILE
+                            formData.user_email = email
+
+                            formData.user_id    = id__  
                             const userName = user.NAME || '';
                             const userLastName = user.LAST_NAME || '';
                             const fullName = (userName + ' ' + userLastName).trim() || 'Без имени';
