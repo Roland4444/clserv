@@ -182,7 +182,7 @@
              (user_id (hunchentoot:post-parameter "user_id"))
              (user_email (hunchentoot:post-parameter "user_email"))
              (user_phone (hunchentoot:post-parameter "user_phone"))
-             (uploaded-file (hunchentoot:post-parameter "file"))  ; это список, если файл был
+             (uploaded-file (hunchentoot:post-parameter "file"))
              (base-dir (make-pathname :directory '(:relative "requests")))
              (request-dir (merge-pathnames (make-pathname :directory `(:relative ,uuid)) base-dir)))
         ;; Проверка наличия UUID
@@ -190,7 +190,7 @@
           (error "Missing or empty uuid"))
         ;; Создаём директорию запроса
         (ensure-directories-exist request-dir)
-        ;; Сохраняем JSON с данными (без файла)
+        ;; Данные для сохранения
         (let ((json-data `((:uuid . ,uuid)
                            (:category . ,category)
                            (:title . ,title)
@@ -198,26 +198,33 @@
                            (:user_id . ,user_id)
                            (:user_email . ,user_email)
                            (:user_phone . ,user_phone))))
+          ;; Сохраняем JSON (с экранированием юникода — стандартное поведение cl-json)
           (with-open-file (f (merge-pathnames "data.json" request-dir)
                              :direction :output
-                             :if-exists :supersede)
-          ;;  (cl-json:encode-json json-data f)))
-            (cl-json:encode-json json-data f :with-unicode t)))
-        ;; Если есть файл, сохраняем его
-(when uploaded-file
-  (let* ((temp-path (first uploaded-file))   ; путь к временному файлу (индекс 0)
-         (orig-name (second uploaded-file))  ; оригинальное имя файла (индекс 1)
-         (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
-                                                    :type nil)
-                                     request-dir)))
-    (format t "~%Saving file: ~A -> ~A~%" temp-path dest-path) ; опционально, для лога
-    (uiop:copy-file temp-path dest-path)))
+                             :if-exists :supersede
+                             :external-format :utf-8)
+            (cl-json:encode-json json-data f))
+          ;; Сохраняем Lisp-представление (читабельно в REPL)
+          (with-open-file (f (merge-pathnames "data.lisp" request-dir)
+                             :direction :output
+                             :if-exists :supersede
+                             :external-format :utf-8)
+            (with-standard-io-syntax
+              (let ((*print-readably* t))
+                (print json-data f))))   ; печатаем в формате, читаемом Lisp
+          ;; Если есть файл, сохраняем его
+          (when uploaded-file
+            (let* ((temp-path (first uploaded-file))
+                   (orig-name (second uploaded-file))
+                   (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
+                                                              :type nil)
+                                               request-dir)))
+              (uiop:copy-file temp-path dest-path))))
         ;; Возвращаем успех
         (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
     (error (e)
       (setf (hunchentoot:return-code*) 400)
       (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
-
 (defun start-server (&key (port 11111))
   (let ((acceptor (make-instance 'hunchentoot:easy-acceptor :port port)))
     (hunchentoot:start acceptor)
