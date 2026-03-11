@@ -12,48 +12,22 @@
             };
 
 
-                var session_uuid = "";
-                function load_uuid(){
-                       // alert('test ajax')
-                        function getXmlHttp()
-                        {
-                            var xmlhttp;
-                            try {
-                            xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
-                            } catch (e) {
-                            try {
-                                xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
-                            } catch (E) {
-                                xmlhttp = false;
-                            }
-                            }
-                            if (!xmlhttp && typeof XMLHttpRequest!='undefined')  xmlhttp = new XMLHttpRequest();
-                           return xmlhttp;
-                        }
-                            var xhr = getXmlHttp()
-                           // var params= document.getElementById("params").value ;
-                            var request = "/tuid";///?params="//+params;
-                            xhr.open("GET", request, true);
-                            xhr.onreadystatechange=function(){
-                            //    alert(xhr.responseText);
-                                if (xhr.readyState != 4) return
-                                clearTimeout(xhrTimeout)
-                                if (xhr.status == 200) {
-                                  //  var json = JSON.parse(xhr.responseText);
-                             //       alert(xhr.responseText);
-                                    session_uuid =  xhr.responseText;
-                                } else {}
-                            }
-                           xhr.send("a=5&b=4");// xhr.send("a=5&b=4");
-                            var xhrTimeout = setTimeout( function(){ xhr.abort(); handleError("Timeout") }, 10000);
-                            function handleError(message) {
-                                alert("Ошибка: "+message)
-                            }
-                } 
-            load_uuid();
+			function fetchUUID(callback) {
+    		var xhr = new XMLHttpRequest();
+    		xhr.open('GET', '/tuid', true);
+    		xhr.onreadystatechange = function() {
+        		if (xhr.readyState === 4 && xhr.status === 200) {
+            		var uuid = xhr.responseText.trim();
+            		formData.uuid = uuid;  // сохраняем в formData
+            		if (callback) callback(uuid);
+        			}
+    			};
+    		xhr.send();
+			}
 
-            alert('ession uuid='+session_uuid )
-            // Проверка загрузки CSS2DRenderer
+			
+			fetchUUID(function(uuid) {console.log('UUID получен:', uuid);});
+            
             if (typeof THREE.CSS2DRenderer === 'undefined') {
                 console.error('CSS2DRenderer не загрузился. Проверьте подключение скриптов.');
                 document.body.innerHTML += '<div style="color:red;position:absolute;top:50px;">Ошибка: CSS2DRenderer не загружен</div>';
@@ -253,8 +227,6 @@
                         `;
                         break;
                     case 4: // Завершение
-                        alert('session uuid='+session_uuid )
-
                         div.innerHTML = `
                             <h2>✅ Заявка создана!</h2>
                             <p>Спасибо, ваша заявка отправлена в IT-отдел.</p>
@@ -319,13 +291,26 @@
             }
 
             // --- Отправка данных на сервер (заглушка) ---
-            function submitForm() {
-                alert('Запрос одобрен')
-                console.log('Отправка данных:', formData);
-                // Здесь реальный fetch на /create-task
-                state = 4;
-                createPanel();
-            }
+		function submitForm() {
+    		if (!formData.uuid) 	{alert('UUID ещё не получен, попробуйте через секунду');return;}
+    		const data = new FormData();
+    		data.append('uuid', formData.uuid);
+    		data.append('category', formData.category);
+    		data.append('title', formData.title);
+    		data.append('description', formData.description);
+    		data.append('user_id', formData.user_id);
+    		data.append('user_email', formData.user_email);
+    		data.append('user_phone', formData.user_phone);
+    		if (formData.file) data.append('file', formData.file);
+        	fetch('/create-task', {method: 'POST',    body: data})
+    				.then(response => response.json())
+    				.then(result => {
+        				if (result.status === 'ok') {
+            				state = 4; // переходим к экрану завершения
+            				createPanel();
+        				} else {alert('Ошибка: ' + result.message);}
+    				}).catch(err => {alert('Ошибка сети: ' + err);});
+		}
 
             // --- Запуск ---
             createPanel();

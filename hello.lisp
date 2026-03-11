@@ -4,8 +4,8 @@
 (asdf:load-system :frugal-uuid)
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
+  ;; (:import-from :hunchentoot ... ) - полностью удалите эту строку!
   (:export #:start-server #:main #:plus #:test-plus))
-
 (in-package :hello)
 
 ;;; Функция суммирования
@@ -165,11 +165,58 @@
       (format log-stream "[~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d] ~a~%"
               year month day hour minute second data))))
 
+; (hunchentoot:define-easy-handler (create-task :uri "/create-task" :default-request-type :post) ()
+;   (setf (hunchentoot:content-type*) "application/json")
+;   (let* ((raw-data (hunchentoot:raw-post-data :force-text t)))
+;     (log-request raw-data)
+;     (cl-json:encode-json-to-string '((:status . "ok") (:message . "logged")))))      
+
+
 (hunchentoot:define-easy-handler (create-task :uri "/create-task" :default-request-type :post) ()
-  (setf (hunchentoot:content-type*) "application/json")
-  (let* ((raw-data (hunchentoot:raw-post-data :force-text t)))
-    (log-request raw-data)
-    (cl-json:encode-json-to-string '((:status . "ok") (:message . "logged")))))      
+  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+  (handler-case
+      (let* ((uuid (hunchentoot:post-parameter "uuid"))
+             (category (hunchentoot:post-parameter "category"))
+             (title (hunchentoot:post-parameter "title"))
+             (description (hunchentoot:post-parameter "description"))
+             (user_id (hunchentoot:post-parameter "user_id"))
+             (user_email (hunchentoot:post-parameter "user_email"))
+             (user_phone (hunchentoot:post-parameter "user_phone"))
+             (uploaded-file (hunchentoot:post-parameter "file"))  ; это список, если файл был
+             (base-dir (make-pathname :directory '(:relative "requests")))
+             (request-dir (merge-pathnames (make-pathname :directory `(:relative ,uuid)) base-dir)))
+        ;; Проверка наличия UUID
+        (unless (and uuid (string/= uuid ""))
+          (error "Missing or empty uuid"))
+        ;; Создаём директорию запроса
+        (ensure-directories-exist request-dir)
+        ;; Сохраняем JSON с данными (без файла)
+        (let ((json-data `((:uuid . ,uuid)
+                           (:category . ,category)
+                           (:title . ,title)
+                           (:description . ,description)
+                           (:user_id . ,user_id)
+                           (:user_email . ,user_email)
+                           (:user_phone . ,user_phone))))
+          (with-open-file (f (merge-pathnames "data.json" request-dir)
+                             :direction :output
+                             :if-exists :supersede)
+            (cl-json:encode-json json-data f)))
+        ;; Если есть файл, сохраняем его
+        (when uploaded-file
+          ;; uploaded-file - это список вида: ("file" #P"/tmp/..." "original-name" "mime-type")
+          (let* ((temp-path (second uploaded-file))    ; путь к временному файлу
+                 (orig-name (third uploaded-file))     ; оригинальное имя файла
+                 (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
+                                                            :type nil)
+                                            request-dir)))
+            ;; Копируем временный файл в целевую папку
+            (uiop:copy-file temp-path dest-path)))
+        ;; Возвращаем успех
+        (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
+    (error (e)
+      (setf (hunchentoot:return-code*) 400)
+      (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
 
 (defun start-server (&key (port 11111))
   (let ((acceptor (make-instance 'hunchentoot:easy-acceptor :port port)))
