@@ -430,15 +430,8 @@ textarea { width: 100%; font-family: monospace; }
                   :content json-payload)
       (format t "<<< UPLOAD RESPONSE status: ~A, body: ~A~%" status body)
       (if (= status 200)
-          (let* ((json (cl-json:decode-json-from-string body))
-                 (result (cdr (assoc :result json))))
-            (unless result
-              (error "No :result in upload response"))
-            (let ((file-id (cdr (assoc :ID result))))
-              (unless file-id
-                (error "No :ID in result"))
-              (format t "    extracted file-id: ~A~%" file-id)
-              file-id))
+          (let* ((json (cl-json:decode-json-from-string body)))
+            (extract-id-from-bitrix-response json))
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
