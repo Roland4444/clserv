@@ -469,8 +469,7 @@ textarea { width: 100%; font-family: monospace; }
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
-  "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID.
-   Выводит полную отладку запроса и ответа."
+  "Прикрепляет файл к задаче Bitrix."
   (let ((payload `(("taskId" . ,task-id)
                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix))))))
         (json-payload (cl-json:encode-json-to-string payload)))
@@ -482,21 +481,10 @@ textarea { width: 100%; font-family: monospace; }
                   :headers '(("Content-Type" . "application/json"))
                   :content json-payload)
       (format t "<<< ATTACH RESPONSE status: ~A, body: ~A~%" status body)
-      ;; Если статус не 200, сразу ошибка
       (unless (= status 200)
         (error "Failed to attach file, status ~A: ~A" status body))
-      ;; Даже при статусе 200 проверяем, нет ли в теле ошибки (бывает)
-      (let ((json (ignore-errors (cl-json:decode-json-from-string body))))
-        (if json
-            (let ((error-msg (cdr (assoc :error json))))
-              (if error-msg
-                  (error "Bitrix attach error: ~A" error-msg)
-                  (progn
-                    (format t "    Attach successful, response: ~S~%" json)
-                    body)))
-            (progn
-              (format t "    Attach response is not JSON, assuming success~%")
-              body))))))
+      body)))
+
 (defun format-bitrix-deadline (universal-time)
   (multiple-value-bind (second minute hour day month year)
       (decode-universal-time universal-time 3)
