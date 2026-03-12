@@ -444,13 +444,11 @@ textarea { width: 100%; font-family: monospace; }
     (format t "~%=== SEND-TO-BITRIX START ===~%")
     (format t "base-url: ~A~%" base-url)
     (format t "category: ~A, title: ~A, priority: ~A, user-id: ~A~%" category title priority user-id-str)
-    (unless base-url
-      (error "Bitrix URL не настроен в конфигурации"))
-
-    ;; Отладка: показать все файлы в папке
+    (format t "    request-dir: ~A~%" request-dir)
+    (format t "    probe-file request-dir: ~A~%" (probe-file request-dir))
     (let ((all-files (when (probe-file request-dir)
                        (directory (merge-pathnames "*" request-dir)))))
-      (format t "    All files in dir: ~S~%" all-files)
+      (format t "    all-files from directory: ~S~%" all-files)
       (let ((file-attachment
               (find-if (lambda (f)
                          (let ((name (file-namestring f)))
@@ -458,14 +456,12 @@ textarea { width: 100%; font-family: monospace; }
                                 (not (equal name "data.lisp"))))
                        all-files)))
         (format t "    file-attachment: ~S~%" file-attachment)
-
         ;; ШАГ 1: загружаем файл (если есть)
         (let ((file-id nil))
           (when file-attachment
             (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
               (setf file-id (upload-file-to-bitrix-task-helper upload-url file-attachment))
               (format t "    file-id after upload: ~A~%" file-id)))
-
           ;; ШАГ 2: создаём задачу (всегда)
           (flet ((ensure-list (x) (if (listp x) x (list x))))
             (let* ((base-auditors (ensure-list auditors-val))
@@ -503,13 +499,11 @@ textarea { width: 100%; font-family: monospace; }
                       (error "Bitrix task creation failed: ~A" create-body)
                       (let ((task-id (parse-bitrix-task-id create-body)))
                         (format t "task-id: ~A~%" task-id)
-
                         ;; ШАГ 3: прикрепляем файл (если есть)
                         (when file-id
                           (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
                             (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id))
                             (format t "Файл прикреплён к задаче ~A~%" task-id)))
-
                         (format t "=== SEND-TO-BITRIX END ===~%")
                         task-id))))))))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
