@@ -372,16 +372,18 @@ textarea { width: 100%; font-family: monospace; }
     (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
 
 (defun upload-file-to-bitrix-task-helper (upload-url file-path)
-  "Загружает файл, возвращает ID объекта диска или сигнализирует ошибку."
-  (let* ((file-name (file-namestring file-path))
+  "Загружает файл, добавляя timestamp к имени для уникальности. Возвращает ID диска."
+  (let* ((orig-name (file-namestring file-path))
+         (timestamp (format nil "~D" (get-universal-time)))
+         (unique-name (concatenate 'string timestamp "_" orig-name))
          (file-content 
            (with-open-file (stream file-path :element-type '(unsigned-byte 8))
              (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
                (read-sequence bytes stream)
                (cl-base64:usb8-array-to-base64-string bytes))))
          (payload `(("id" . 1)
-                    ("data" . (("NAME" . ,file-name)))
-                    ("fileContent" . (,file-name ,file-content))))
+                    ("data" . (("NAME" . ,unique-name)))
+                    ("fileContent" . (,unique-name ,file-content))))
          (json-payload (cl-json:encode-json-to-string payload)))
     (format t "~%>>> UPLOAD REQUEST to ~A~%" upload-url)
     (format t ">>> payload: ~S~%" payload)
