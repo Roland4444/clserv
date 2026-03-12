@@ -8,7 +8,8 @@
                 uuid: '',
                 user_id: '',
                 user_email: '',
-                user_phone: ''
+                user_phone: '',
+                priority: 'medium'
             };
 
 
@@ -194,6 +195,32 @@
                             });
                         }, 0);
                         break;
+                    case 6: // Выбор срочности
+                    div.innerHTML = `
+                        <h2>Укажите срочность</h2>
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="priority" value="very_high" ${formData.priority === 'very_high' ? 'checked' : ''}> Очень высокая
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="priority" value="high" ${formData.priority === 'high' ? 'checked' : ''}> Высокая
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="priority" value="medium" ${formData.priority === 'medium' ? 'checked' : ''}> Средняя
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="priority" value="low" ${formData.priority === 'low' ? 'checked' : ''}> Низкая
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="priority" value="very_low" ${formData.priority === 'very_low' ? 'checked' : ''}> Очень низкая
+                        </label>
+                        </div>
+                        <div>
+                            <button id="backBtn">Назад</button>
+                            <button id="nextBtn">Далее</button>
+                        </div>
+                        `;
+                    break;    
                     case 1: // Ввод темы
                         div.innerHTML = `
                             <h2>Введите тему заявки</h2>
