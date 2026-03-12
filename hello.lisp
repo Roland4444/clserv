@@ -12,7 +12,7 @@
 
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
-  (:export #:start-server #:main #:plus #:test-plus))
+  (:export #:start-server #:main #:plus #:test-plus  #:tests))
 (in-package :hello)
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -366,6 +366,42 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;| __|__|  || ______   | ______| ||   \\  //
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;||______  ||   ||     ||\ \     ||    \\//
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|____|_|  ||   ||     || \ \    ||   // \\
+
+;;; Функция для извлечения ID из ответа Bitrix после загрузки файла
+(defun extract-id-from-bitrix-response (json-response)
+  "Извлекает ID из JSON-ответа Bitrix (уже декодированного в ассоциативный список).
+   Поддерживает ключи в формате :ID, \"ID\", ID (символ)."
+  (let ((result (cdr (assoc :result json-response))))
+    (unless result
+      (error "No :result in response"))
+    (or (cdr (assoc "ID" result :test #'equal))
+        (cdr (assoc :ID result))
+        (cdr (assoc 'ID result))
+        (error "No ID field in result, available keys: ~S" (mapcar #'car result)))))
+
+;;; Тесты для extract-id-from-bitrix-response
+(defun tests ()
+  (format t "Running tests for EXTRACT-ID-FROM-BITRIX-RESPONSE...~%")
+  ;; Тест 1: ключ как строка "ID"
+  (let ((resp1 '((:result . (("ID" . 123) ("NAME" . "file.txt"))))))
+    (assert (= (extract-id-from-bitrix-response resp1) 123)))
+  ;; Тест 2: ключ как ключевое слово :ID
+  (let ((resp2 '((:result . ((:ID . 456) ("NAME" . "file.txt"))))))
+    (assert (= (extract-id-from-bitrix-response resp2) 456)))
+  ;; Тест 3: ключ как символ ID
+  (let ((resp3 '((:result . ((ID . 789) ("NAME" . "file.txt"))))))
+    (assert (= (extract-id-from-bitrix-response resp3) 789)))
+  ;; Тест 4: отсутствие поля ID
+  (let ((resp4 '((:result . (("NAME" . "file.txt"))))))
+    (handler-case
+        (progn
+          (extract-id-from-bitrix-response resp4)
+          (error "Test 4 failed: expected error"))
+      (error (e)
+        (format t "Test 4 passed: caught expected error ~A~%" e))))
+  (format t "All tests passed for EXTRACT-ID-FROM-BITRIX-RESPONSE.~%")
+  t)
+
 
 (defun parse-bitrix-task-id (response-body)
   (let ((json (cl-json:decode-json-from-string response-body)))
@@ -754,3 +790,6 @@ textarea { width: 100%; font-family: monospace; }
 
 ;; sbcl --load hello.lisp      --eval '(hello:main)'
 ;;  +/r   for hot reload
+
+
+;; sbcl --load hello.lisp      --eval '(hello:tests)'
