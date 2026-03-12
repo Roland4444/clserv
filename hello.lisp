@@ -12,7 +12,7 @@
 
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
-  (:export #:start-server #:main #:plus #:test-plus  #:tests))
+  (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id))
 (in-package :hello)
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -368,16 +368,22 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|____|_|  ||   ||     || \ \    ||   // \\
 
 ;;; Функция для извлечения ID из ответа Bitrix после загрузки файла
+;; Функция извлечения числа из JSON-строки по ключу (исправленная версия)
 (defun extract-number-from-json-string (json-string key)
-  "Ищет в JSON-строке поле \"key\": и возвращает число после него.
-   Например, для ключа \"id\" ищет подстроку \"id\": и извлекает следующее число."
-  (let* ((key-str (format nil "\"~A\":" key))
-         (start (search key-str json-string)))
-    (unless start
+  "Извлекает число из JSON-строки по ключу (например, key=\"ID\")."
+  (let* ((key-str (format nil "\"~A\"" key))
+         (key-start (search key-str json-string)))
+    (unless key-start
       (error "Поле ~S не найдено в JSON" key-str))
-    ;; позиция после двоеточия
-    (let ((pos (+ start (length key-str))))
-      ;; пропускаем пробелы
+    ;; позиция после ключа
+    (let ((pos (+ key-start (length key-str))))
+      ;; ищем двоеточие
+      (setf pos (position #\: json-string :start pos))
+      (unless pos
+        (error "После ключа ~S не найдено двоеточие" key-str))
+      ;; переходим к символу после двоеточия
+      (incf pos)
+      ;; пропускаем пробелы и табуляции
       (loop while (and (< pos (length json-string))
                        (member (aref json-string pos) '(#\Space #\Tab)))
             do (incf pos))
@@ -390,18 +396,26 @@ textarea { width: 100%; font-family: monospace; }
             (error "После поля ~S не найдено число" key-str)
             (parse-integer (subseq json-string num-start pos)))))))
 
+(defun test-id ()
+  (let ((json "{\"result\":{\"ID\":592,\"NAME\":\"3982318137_1.txt\",\"CODE\":null,\"STORAGE_ID\":\"1\",\"TYPE\":\"file\",\"PARENT_ID\":\"1\",\"DELETED_TYPE\":0,\"GLOBAL_CONTENT_VERSION\":1,\"FILE_ID\":674,\"SIZE\":\"4\",\"CREATE_TIME\":\"2026-03-12T18:28:57+03:00\",\"UPDATE_TIME\":\"2026-03-12T18:28:57+03:00\",\"DELETE_TIME\":null,\"CREATED_BY\":\"1\",\"UPDATED_BY\":\"1\",\"DELETED_BY\":null,\"DOWNLOAD_URL\":\"https://b24-e8jgcd.bitrix24.ru/rest/1/j76xi3h3vyvmqlro/download/?token=disk%7CaWQ9NTkyJl89YWh5cU9LazI0WTEzZ1BaQXA2Z3RmUDQ4bE0ybld2UlA%3D%7CImRvd25sb2FkfGRpc2t8YVdROU5Ua3lKbDg5WVdoNWNVOUxhekkwV1RFeloxQmFRWEEyWjNSbVVEUTRiRTB5YmxkMlVsQT18MXxqNzZ4aTNoM3Z5dm1xbHJvIg%3D%3D.Lc1oPtPAnkpfX9jKEtKm%2FH8w0EdG2QSGwXOjhQiZE2w%3D\",\"DETAIL_URL\":\"https://b24-e8jgcd.bitrix24.ru/company/personal/user/1/disk/file/3982318137_1.txt\"},\"time\":{\"start\":1773329337,\"finish\":1773329337.204803,\"duration\":0.2048029899597168,\"processing\":0,\"date_start\":\"2026-03-12T18:28:57+03:00\",\"date_finish\":\"2026-03-12T18:28:57+03:00\",\"operating_reset_at\":1773329937,\"operating\":6.6042845249176025}}"))
+    (let ((id (extract-number-from-json-string json "ID")))
+      (assert (= id 592))
+      (format t "Test passed: extracted ~A~%" id))))
+
+;; Запуск: (test-extract-id)
+
+;; Запуск теста
+;; (test-extract-id)
 
 
-(defun parse-bitrix-task-id (response-body)
-  "Извлекает ID задачи из ответа Bitrix после создания.
-   Ищет поле \"id\": в строке."
-  (extract-number-from-json-string response-body "id"))
-  
-(defun extract-id-from-bitrix-response (response-body)
-  "Извлекает ID из ответа Bitrix (поле ID)."
-  (extract-number-from-json-string response-body "ID"))
+
 
 ;;; Тесты для extract-id-from-bitrix-response
+;; Тест для extract-number-from-json-string на реальном JSON из лога
+
+
+;; Запуск: (test-extract-id)
+
 (defun tests ()
   (format t "Running tests for JSON number extraction...~%")
   ;; Тест 1: извлечение ID из ответа загрузки файла (ключ "ID")
@@ -430,11 +444,6 @@ textarea { width: 100%; font-family: monospace; }
   (format t "All tests passed.~%")
   t)
 
-
-(defun parse-bitrix-task-id (response-body)
-  (let ((json (cl-json:decode-json-from-string response-body)))
-    (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
-
 (defun upload-file-to-bitrix-task-helper (upload-url file-path)
   "Загружает файл, добавляя timestamp к имени для уникальности. Возвращает ID диска."
   (let* ((orig-name (file-namestring file-path))
@@ -459,7 +468,7 @@ textarea { width: 100%; font-family: monospace; }
       (format t "<<< UPLOAD RESPONSE status: ~A, body: ~A~%" status body)
       (if (= status 200)
           (let* ((json (cl-json:decode-json-from-string body)))
-            (extract-id-from-bitrix-response json))
+            (extract-number-from-json-string body "ID"))
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
@@ -560,7 +569,7 @@ textarea { width: 100%; font-family: monospace; }
         (format t "<<< CREATE TASK RESPONSE status: ~A, body: ~A~%" create-status create-body)
         (if (>= create-status 400)
             (error "Bitrix task creation failed: ~A" create-body)
-            (let ((task-id (parse-bitrix-task-id create-body)))
+            (let ((task-id (extract-number-from-json-string create-body "id")))
               (format t "task-id: ~A~%" task-id)
               ;; Прикрепляем файл, если он был загружен
               (when file-id
@@ -810,3 +819,5 @@ textarea { width: 100%; font-family: monospace; }
 
 
 ;; sbcl --load hello.lisp      --eval '(hello:tests)'
+
+;; sbcl --load hello.lisp      --eval '(hello:test-id)'
