@@ -56,6 +56,7 @@
                             var id__  =  user.ID
                             var phone =  user.PERSONAL_MOBILE
                             formData.user_email = email
+                            formData.user_phone = phone
 
                             formData.user_id    = id__  
                             const userName = user.NAME || '';
