@@ -257,6 +257,45 @@
       (format log-stream "[~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d] ~a~%"
               year month day hour minute second data))))
 
+; (defun send-to-bitrix (data)
+;   (let ((url (gethash :bitrix-url *config*))
+;         (responsible-alist (gethash :bitrix-responsible *config*))
+;         (category (cdr (assoc :category data)))
+;         (title (or (cdr (assoc :title data)) "Без темы"))
+;         (description (or (cdr (assoc :description data)) "")))
+;     (unless url
+;       (error "Bitrix URL не настроен в конфигурации"))
+;     ;; Определяем ответственного по категории, если не найдено — используем 1
+;     (let* ((responsible-id
+;              (if responsible-alist
+;                  (or (cdr (assoc category responsible-alist :test #'string=)) 1)
+;                  1))
+;            (payload `(("fields" .
+;                        (("TITLE" . ,title)
+;                         ("DESCRIPTION" . ,description)
+;                         ("RESPONSIBLE_ID" . ,responsible-id)
+;                         ("CREATED_BY" . 1)
+;                         ("ACCOMPLICES" . (14))
+;                         ("AUDITORS" . (26))
+;                         ("DEADLINE" . "2025-03-10T18:00:00+03:00")
+;                         ("PRIORITY" . 2)   ; можно позже заменить на priority из data
+;                         ("GROUP_ID" . 10)))))
+;           (json-payload (cl-json:encode-json-to-string payload)))
+;       (handler-case
+;           (let* ((response (dex:post url
+;                                       :content-type "application/json"
+;                                       :content json-payload
+;                                       :want-string t))
+;                  (body (car response))
+;                  (status (cdr response)))
+;             (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
+;             (when (>= status 400)
+;               (error "Bitrix request failed with status ~A" status)))
+;         (dex:http-request-failed (e)
+;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
+;           (error e))))))    
+
+
 (defun send-to-bitrix (data)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
@@ -265,7 +304,6 @@
         (description (or (cdr (assoc :description data)) "")))
     (unless url
       (error "Bitrix URL не настроен в конфигурации"))
-    ;; Определяем ответственного по категории, если не найдено — используем 1
     (let* ((responsible-id
              (if responsible-alist
                  (or (cdr (assoc category responsible-alist :test #'string=)) 1)
@@ -278,14 +316,14 @@
                         ("ACCOMPLICES" . (14))
                         ("AUDITORS" . (26))
                         ("DEADLINE" . "2025-03-10T18:00:00+03:00")
-                        ("PRIORITY" . 2)   ; можно позже заменить на priority из data
+                        ("PRIORITY" . 2)   ; можно заменить на priority из data
                         ("GROUP_ID" . 10)))))
           (json-payload (cl-json:encode-json-to-string payload)))
       (handler-case
           (let* ((response (dex:post url
-                                      :content-type "application/json"
-                                      :content json-payload
-                                      :want-string t))
+                                     :headers '(("Content-Type" . "application/json"))
+                                     :content json-payload
+                                     :want-string t))
                  (body (car response))
                  (status (cdr response)))
             (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
@@ -293,7 +331,7 @@
               (error "Bitrix request failed with status ~A" status)))
         (dex:http-request-failed (e)
           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
-          (error e))))))    
+          (error e))))))
 
 
 (defun send-to-glpi (data)
