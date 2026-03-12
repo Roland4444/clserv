@@ -431,6 +431,8 @@ textarea { width: 100%; font-family: monospace; }
       2
       1))
 
+
+      
 (defun send-to-bitrix (data request-dir)
   (let ((base-url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
