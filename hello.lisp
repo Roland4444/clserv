@@ -360,8 +360,7 @@ textarea { width: 100%; font-family: monospace; }
     (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
 
 (defun upload-file-to-bitrix-task (task-id file-path)
-  "Загружает файл FILE-PATH в папку задачи TASK-ID на Диске Bitrix.
-   Возвращает ID объекта диска (result.ID)."
+  "Загружает файл в корневую папку пользователя (id=1) и возвращает ID объекта диска."
   (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
                            "/disk.folder.uploadfile"))
          (file-name (file-namestring file-path))
@@ -371,8 +370,8 @@ textarea { width: 100%; font-family: monospace; }
              (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
                (read-sequence bytes stream)
                (cl-base64:usb8-array-to-base64-string bytes))))
-         ;; Формируем payload строго по документации
-         (payload `(("id" . ,task-id)
+         ;; Загружаем в папку с id=1 (корневая папка пользователя)
+         (payload `(("id" . 1)
                     ("data" . (("NAME" . ,file-name)))
                     ("fileContent" . (,file-name ,file-content)))))
     (multiple-value-bind (body status)
@@ -381,8 +380,10 @@ textarea { width: 100%; font-family: monospace; }
                   :content (cl-json:encode-json-to-string payload))
       (if (= status 200)
           (let ((json (cl-json:decode-json-from-string body)))
-            (cdr (assoc :ID (cdr (assoc :result json)))))  ; возвращаем ID объекта диска
+            (cdr (assoc :ID (cdr (assoc :result json))))) ; возвращаем ID объекта диска
           (error "Failed to upload file, status ~A: ~A" status body)))))
+
+          
 
 (defun attach-file-to-bitrix-task (task-id file-id-with-prefix)
   "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID."
@@ -422,12 +423,6 @@ textarea { width: 100%; font-family: monospace; }
   (if (member priority '("very_high" "high") :test #'string=)
       2
       1))
-
-
-(defun send-to-bitrix444444 (data request-dir)
-  (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
-  (return-from send-to-bitrix "test"))
-
 
 (defun send-to-bitrix (data request-dir)
   (let ((url (gethash :bitrix-url *config*))
@@ -491,18 +486,17 @@ textarea { width: 100%; font-family: monospace; }
                     (when file-attachment
                       (handler-case
                           (let ((file-id (upload-file-to-bitrix-task task-id file-attachment)))
-                            (attach-file-to-bitrix-task task-id file-id)
+                            ;; Добавляем префикс "n" перед ID
+                            (attach-file-to-bitrix-task task-id (format nil "n~A" file-id))
                             (format t "~%Файл ~A прикреплён к задаче ~A~%" 
                                     (file-namestring file-attachment) task-id))
                         (error (e)
                           (format t "~%Ошибка при загрузке/прикреплении файла: ~A~%" e)
-                          ;; Не прерываем обработку, задача уже создана
-                          ))
-                      ;; Добавляем информацию о файле в описание (на случай ошибки прикрепления)
-                      (setf description
-                            (concatenate 'string description
-                                         (format nil "~%~%Приложен файл: ~A (не удалось прикрепить автоматически)"
-                                                 (file-namestring file-attachment))))))))))))))
+                          ;; Добавляем информацию о файле в описание
+                          (setf description
+                                (concatenate 'string description
+                                             (format nil "~%~%Приложен файл: ~A (не удалось прикрепить автоматически)"
+                                                     (file-namestring file-attachment))))))))))))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
