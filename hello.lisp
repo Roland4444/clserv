@@ -372,31 +372,25 @@ textarea { width: 100%; font-family: monospace; }
   (let ((json (cl-json:decode-json-from-string response-body)))
     (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
 
-(defun upload-file-to-bitrix-task (task-id file-path)
-  "Загружает файл в корневую папку пользователя (id=1) и возвращает ID объекта диска."
-  (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
-                           "/disk.folder.uploadfile"))
-         (file-name (file-namestring file-path))
-         ;; Читаем файл и кодируем в base64
+(defun upload-file-to-bitrix-task-helper (upload-url file-path)
+  "Загружает файл по заданному URL (должен быть полный метод disk.folder.uploadfile) и возвращает ID объекта диска."
+  (let* ((file-name (file-namestring file-path))
          (file-content 
            (with-open-file (stream file-path :element-type '(unsigned-byte 8))
              (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
                (read-sequence bytes stream)
                (cl-base64:usb8-array-to-base64-string bytes))))
-         ;; Загружаем в папку с id=1 (корневая папка пользователя)
          (payload `(("id" . 1)
                     ("data" . (("NAME" . ,file-name)))
                     ("fileContent" . (,file-name ,file-content)))))
     (multiple-value-bind (body status)
-        (dex:post url
+        (dex:post upload-url
                   :headers '(("Content-Type" . "application/json"))
                   :content (cl-json:encode-json-to-string payload))
       (if (= status 200)
           (let ((json (cl-json:decode-json-from-string body)))
             (cdr (assoc :ID (cdr (assoc :result json))))) ; возвращаем ID объекта диска
           (error "Failed to upload file, status ~A: ~A" status body)))))
-
-          
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
   "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID."
@@ -409,8 +403,6 @@ textarea { width: 100%; font-family: monospace; }
       (if (= status 200)
           body
           (error "Failed to attach file, status ~A: ~A" status body)))))
-
-
 
 (defun format-bitrix-deadline (universal-time)
   "Преобразует универсальное время в строку формата YYYY-MM-DDTHH:MM:SS+03:00 (московское время)."
@@ -434,27 +426,6 @@ textarea { width: 100%; font-family: monospace; }
       2
       1))
 
-
-(defun upload-file-to-bitrix-task-helper (upload-url file-path)
-  "Загружает файл по заданному URL и возвращает ID объекта диска."
-  (let* ((file-name (file-namestring file-path))
-         (file-content 
-           (with-open-file (stream file-path :element-type '(unsigned-byte 8))
-             (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
-               (read-sequence bytes stream)
-               (cl-base64:usb8-array-to-base64-string bytes))))
-         (payload `(("id" . 1)
-                    ("data" . (("NAME" . ,file-name)))
-                    ("fileContent" . (,file-name ,file-content)))))
-    (multiple-value-bind (body status)
-        (dex:post upload-url
-                  :headers '(("Content-Type" . "application/json"))
-                  :content (cl-json:encode-json-to-string payload))
-      (if (= status 200)
-          (let ((json (cl-json:decode-json-from-string body)))
-            (cdr (assoc :ID (cdr (assoc :result json)))))
-          (error "Failed to upload file, status ~A: ~A" status body)))))      
-
 (defun send-to-bitrix (data request-dir)
   (let ((base-url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
@@ -475,64 +446,55 @@ textarea { width: 100%; font-family: monospace; }
                              (and (not (equal name "data.json"))
                                   (not (equal name "data.lisp")))))
                          files)))))
-      ;; Подготовка данных для создания задачи
-      (flet ((ensure-list (x)
-               (if (listp x) x (list x))))
-        (let* ((base-auditors (ensure-list auditors-val))
-               (user-id (and user-id-str
-                             (not (equal user-id-str ""))
-                             (not (equal user-id-str "undefined"))
-                             (parse-integer user-id-str :junk-allowed t)))
-               (auditors-list
-                 (if user-id
-                     (adjoin user-id base-auditors)
-                     base-auditors))
-               (responsible-id
-                 (if responsible-alist
-                     (or (cdr (assoc category responsible-alist :test #'string=)) 1)
-                     1))
-               (deadline (compute-deadline priority))
-               (bitrix-priority (compute-bitrix-priority priority))
-               (payload `(("fields" .
-                           (("TITLE" . ,title)
-                            ("DESCRIPTION" . ,description)
-                            ("RESPONSIBLE_ID" . ,responsible-id)
-                            ("CREATED_BY" . 1)
-                            ("AUDITORS" . ,auditors-list)
-                            ("DEADLINE" . ,deadline)
-                            ("PRIORITY" . ,bitrix-priority)
-                            ("GROUP_ID" . 10)))))
-              (json-payload (cl-json:encode-json-to-string payload)))
-          ;; 1. Создаём задачу
-          (let ((create-url (concatenate 'string base-url "tasks.task.add")))
-            (multiple-value-bind (create-body create-status)
-                (dex:post create-url
-                          :headers '(("Content-Type" . "application/json"))
-                          :content json-payload)
-              (if (>= create-status 400)
-                  (error "Bitrix task creation failed: ~A" create-body)
-                  (progn
-                    (format t "~%Bitrix задача создана, ответ: ~A~%" create-body)
+      ;; **Шаг 1: если есть файл, загружаем его ДО создания задачи**
+      (let ((file-id nil))
+        (when file-attachment
+          (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
+            (setf file-id (upload-file-to-bitrix-task-helper upload-url file-attachment))
+            (format t "~%Файл загружен на диск, ID: ~A~%" file-id)))
+        ;; **Шаг 2: создаём задачу**
+        (flet ((ensure-list (x)
+                 (if (listp x) x (list x))))
+          (let* ((base-auditors (ensure-list auditors-val))
+                 (user-id (and user-id-str
+                               (not (equal user-id-str ""))
+                               (not (equal user-id-str "undefined"))
+                               (parse-integer user-id-str :junk-allowed t)))
+                 (auditors-list
+                   (if user-id
+                       (adjoin user-id base-auditors)
+                       base-auditors))
+                 (responsible-id
+                   (if responsible-alist
+                       (or (cdr (assoc category responsible-alist :test #'string=)) 1)
+                       1))
+                 (deadline (compute-deadline priority))
+                 (bitrix-priority (compute-bitrix-priority priority))
+                 (payload `(("fields" .
+                             (("TITLE" . ,title)
+                              ("DESCRIPTION" . ,description)
+                              ("RESPONSIBLE_ID" . ,responsible-id)
+                              ("CREATED_BY" . 1)
+                              ("AUDITORS" . ,auditors-list)
+                              ("DEADLINE" . ,deadline)
+                              ("PRIORITY" . ,bitrix-priority)
+                              ("GROUP_ID" . 10)))))
+                (json-payload (cl-json:encode-json-to-string payload)))
+            (let ((create-url (concatenate 'string base-url "tasks.task.add")))
+              (multiple-value-bind (create-body create-status)
+                  (dex:post create-url
+                            :headers '(("Content-Type" . "application/json"))
+                            :content json-payload)
+                (if (>= create-status 400)
+                    (error "Bitrix task creation failed: ~A" create-body)
                     (let ((task-id (parse-bitrix-task-id create-body)))
-                      ;; 2. Если есть файл, загружаем и прикрепляем
-                      (when file-attachment
-                        (handler-case
-                            (let* ((upload-url (concatenate 'string base-url "disk.folder.uploadfile"))
-                                   (file-id (upload-file-to-bitrix-task-helper upload-url file-attachment)))
-                              ;; Добавляем префикс "n" перед ID
-                              (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
-                                (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id)))
-                              (format t "~%Файл ~A прикреплён к задаче ~A~%" 
-                                      (file-namestring file-attachment) task-id))
-                          (error (e)
-                            (format t "~%Ошибка при загрузке/прикреплении файла: ~A~%" e)
-                            ;; Добавляем информацию о файле в описание
-                            (setf description
-                                  (concatenate 'string description
-                                               (format nil "~%~%Приложен файл: ~A (не удалось прикрепить автоматически)"
-                                                       (file-namestring file-attachment)))))))))))))))))
-
-
+                      (format t "~%Bitrix задача создана, ID: ~A~%" task-id)
+                      ;; **Шаг 3: если был файл, прикрепляем его**
+                      (when file-id
+                        (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
+                          (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id))
+                          (format t "~%Файл прикреплён к задаче ~A~%" task-id)))
+                      task-id))))))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
