@@ -445,7 +445,7 @@ textarea { width: 100%; font-family: monospace; }
     (format t "category: ~A, title: ~A, priority: ~A, user-id: ~A~%" category title priority user-id-str)
     (format t "    request-dir: ~A~%" request-dir)
     (format t "    probe-file request-dir: ~A~%" (probe-file request-dir))
-    (let* ((search-path (merge-pathnames "*" request-dir))
+    (let* ((search-path (make-pathname :name :wild :type :wild :defaults request-dir))
            (all-files (when (probe-file request-dir)
                         (directory search-path))))
       (format t "    search-path: ~A~%" search-path)
