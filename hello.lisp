@@ -297,6 +297,53 @@
 ;         (dex:http-request-failed (e)
 ;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
 ;           (error e))))))    
+;                              ______     _________ ________
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;| __|__|  || ______   | ______| ||   \\  //
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;||______  ||   ||     ||\ \     ||    \\//
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|____|_|  ||   ||     || \ \    ||   // \\
+
+(defun parse-bitrix-task-id (response-body)
+  "Извлекает ID задачи из ответа Bitrix после создания."
+  (let ((json (cl-json:decode-json-from-string response-body)))
+    (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
+
+(defun upload-file-to-bitrix-task (task-id file-path)
+  "Загружает файл FILE-PATH в папку задачи TASK-ID на Диске Bitrix.
+   Возвращает ID загруженного файла."
+  (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
+                           "/disk.folder.uploadfile"))
+         (boundary "----WebKitFormBoundary7MA4YWxkTrZu0gW")
+         (file-content (alexandria:read-file-into-byte-vector file-path))
+         (content-type (hunchentoot:mime-type file-path)))
+    (multiple-value-bind (body status)
+        (dex:post url
+                  :headers `(("Content-Type" . ,(format nil "multipart/form-data; boundary=~A" boundary)))
+                  :content `(("id" . ,(write-to-string task-id))
+                             ("fileContents" . (,file-content
+                                                :filename ,(file-namestring file-path)
+                                                :content-type ,content-type)))
+                  :boundary boundary)
+      (if (= status 200)
+          (let ((json (cl-json:decode-json-from-string body)))
+            (cdr (assoc :ID (cdr (assoc :result json)))))
+          (error "Failed to upload file, status ~A: ~A" status body)))))
+
+(defun attach-file-to-bitrix-task (task-id file-id)
+  "Прикрепляет файл с FILE-ID к задаче TASK-ID."
+  (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
+                           "/tasks.task.update"))
+         (payload `(("taskId" . ,task-id)
+                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id))))))
+         (json-payload (cl-json:encode-json-to-string payload)))
+    (multiple-value-bind (body status)
+        (dex:post url
+                  :headers '(("Content-Type" . "application/json"))
+                  :content json-payload)
+      (if (= status 200)
+          body
+          (error "Failed to attach file, status ~A: ~A" status body)))))
+
+
 
 
 (defun format-bitrix-deadline (universal-time)
@@ -328,7 +375,6 @@
 
 
 (defun send-to-bitrix (data request-dir)
-  (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
         (auditors-val (gethash :bitrix-auditors *config*))
@@ -337,27 +383,18 @@
         (description (or (cdr (assoc :description data)) ""))
         (priority (cdr (assoc :priority data)))
         (user-id-str (cdr (assoc :user_id data))))
-    (format t "DEBUG: got params: url=~A, category=~A, title=~A, priority=~A, user-id-str=~A~%" 
-            url category title priority user-id-str)
     (unless url
       (error "Bitrix URL не настроен в конфигурации"))
     ;; Проверяем наличие файла в папке запроса (кроме data.json и data.lisp)
     (let ((file-attachment
             (when (probe-file request-dir)
               (let ((files (directory (merge-pathnames "*" request-dir))))
-                (format t "DEBUG: files in dir: ~S~%" files)
                 (find-if (lambda (f)
                            (let ((name (file-namestring f)))
-                             (format t "DEBUG: checking file ~S, name ~S~%" f name)
                              (and (not (equal name "data.json"))
                                   (not (equal name "data.lisp")))))
                          files)))))
-      (format t "DEBUG: file-attachment = ~S~%" file-attachment)
-      (when file-attachment
-        (setf description
-              (concatenate 'string description
-                           (format nil "~%~%Приложен файл: ~A"
-                                   (file-namestring file-attachment)))))
+      ;; Подготовка данных для создания задачи
       (flet ((ensure-list (x)
                (if (listp x) x (list x))))
         (let* ((base-auditors (ensure-list auditors-val))
@@ -385,18 +422,40 @@
                             ("PRIORITY" . ,bitrix-priority)
                             ("GROUP_ID" . 10)))))
               (json-payload (cl-json:encode-json-to-string payload)))
-          (format t "DEBUG: payload constructed, json-payload: ~A~%" json-payload)
-          (handler-case
-              (multiple-value-bind (body status)
-                  (dex:post url
-                            :headers '(("Content-Type" . "application/json"))
-                            :content json-payload)
-                (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
-                (when (>= status 400)
-                  (error "Bitrix request failed with status ~A" status)))
-            (dex:http-request-failed (e)
-              (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
-              (error e))))))))
+          ;; 1. Создаём задачу
+          (multiple-value-bind (create-body create-status)
+              (dex:post url
+                        :headers '(("Content-Type" . "application/json"))
+                        :content json-payload)
+            (if (>= create-status 400)
+                (error "Bitrix task creation failed: ~A" create-body)
+                (progn
+                  (format t "~%Bitrix задача создана, ответ: ~A~%" create-body)
+                  (let ((task-id (parse-bitrix-task-id create-body)))
+                    ;; 2. Если есть файл, загружаем и прикрепляем
+                    (when file-attachment
+                      (handler-case
+                          (let ((file-id (upload-file-to-bitrix-task task-id file-attachment)))
+                            (attach-file-to-bitrix-task task-id file-id)
+                            (format t "~%Файл ~A прикреплён к задаче ~A~%" 
+                                    (file-namestring file-attachment) task-id))
+                        (error (e)
+                          (format t "~%Ошибка при загрузке/прикреплении файла: ~A~%" e)
+                          ;; Не прерываем обработку, задача уже создана
+                          ))
+                      ;; Добавляем информацию о файле в описание (на случай ошибки прикрепления)
+                      (setf description
+                            (concatenate 'string description
+                                         (format nil "~%~%Приложен файл: ~A (не удалось прикрепить автоматически)"
+                                                 (file-namestring file-attachment))))))))))))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 
 (defun send-to-glpi (data)
