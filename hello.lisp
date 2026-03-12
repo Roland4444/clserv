@@ -320,12 +320,10 @@
                         ("GROUP_ID" . 10)))))
           (json-payload (cl-json:encode-json-to-string payload)))
       (handler-case
-          (let* ((response (dex:post url
-                                     :headers '(("Content-Type" . "application/json"))
-                                     :content json-payload
-                                     :want-string t))
-                 (body (car response))
-                 (status (cdr response)))
+          (multiple-value-bind (body status)
+              (dex:post url
+                        :headers '(("Content-Type" . "application/json"))
+                        :content json-payload)
             (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
             (when (>= status 400)
               (error "Bitrix request failed with status ~A" status)))
