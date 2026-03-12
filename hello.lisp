@@ -396,7 +396,10 @@ textarea { width: 100%; font-family: monospace; }
   "Извлекает ID задачи из ответа Bitrix после создания.
    Ищет поле \"id\": в строке."
   (extract-number-from-json-string response-body "id"))
-
+  
+(defun extract-id-from-bitrix-response (response-body)
+  "Извлекает ID из ответа Bitrix (поле ID)."
+  (extract-number-from-json-string response-body "ID"))
 
 ;;; Тесты для extract-id-from-bitrix-response
 (defun tests ()
@@ -426,7 +429,7 @@ textarea { width: 100%; font-family: monospace; }
       (format t "Test 4 passed: extracted ~A from string with substring~%" id)))
   (format t "All tests passed.~%")
   t)
-  
+
 
 (defun parse-bitrix-task-id (response-body)
   (let ((json (cl-json:decode-json-from-string response-body)))
