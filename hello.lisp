@@ -4,6 +4,8 @@
 (asdf:load-system :frugal-uuid)
 (asdf:load-system :bordeaux-threads)
 (asdf:load-system :dexador)
+(asdf:load-system :cl-base64)
+
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus))
@@ -57,6 +59,22 @@
 (defparameter *config* (make-hash-table :test 'equal)
   "Глобальная хеш-таблица с текущей конфигурацией.")
 
+
+(defun save-config (&optional (filename "config.lisp"))
+  "Сохраняет текущую конфигурацию в FILENAME, форматируя каждую пару на отдельной строке."
+  (with-open-file (out filename
+                       :direction :output
+                       :if-exists :supersede
+                       :external-format :utf-8)
+    (with-standard-io-syntax
+      (let ((*print-readably* t)
+            (*print-pretty* t)
+            (*print-right-margin* 120))
+        (let ((alist (loop for key being the hash-keys of *config*
+                           collect (cons key (gethash key *config*)))))
+          (pprint alist out)
+          (terpri out))))))  ; все закрывающие скобки на месте
+
 (defun load-config (&optional (filename "config.lisp"))
   "Загружает конфигурацию из FILENAME, если файл существует.
    Если файла нет, используется *DEFAULT-CONFIG* и создаётся новый файл."
@@ -80,20 +98,7 @@
   (save-config filename)
   *config*)
 
-(defun save-config (&optional (filename "config.lisp"))
-  "Сохраняет текущую конфигурацию в FILENAME, форматируя каждую пару на отдельной строке."
-  (with-open-file (out filename
-                       :direction :output
-                       :if-exists :supersede
-                       :external-format :utf-8)
-    (with-standard-io-syntax
-      (let ((*print-readably* t)
-            (*print-pretty* t)
-            (*print-right-margin* 120))
-        (let ((alist (loop for key being the hash-keys of *config*
-                           collect (cons key (gethash key *config*)))))
-          (pprint alist out)
-          (terpri out))))))  ; все закрывающие скобки на месте
+
 
 (defun reload-config ()
   "Перезагружает конфигурацию из файла (сбрасывая изменения)."
@@ -322,7 +327,7 @@
          ;; Формируем payload строго по документации
          (payload `(("id" . ,task-id)
                     ("data" . (("NAME" . ,file-name)))
-                    ("fileContent" . [,file-name ,file-content]))))
+                    ("fileContent" . (,file-name ,file-content)))))
     (multiple-value-bind (body status)
         (dex:post url
                   :headers '(("Content-Type" . "application/json"))
