@@ -663,38 +663,28 @@ textarea { width: 100%; font-family: monospace; }
             (with-standard-io-syntax
               (let ((*print-readably* t))
                 (print json-data f))))
-          ;; Если есть файл, сохраняем его с отладкой
+          ;; Если есть файл, сохраняем его простейшим способом
           (when uploaded-file
-            (format t "~%>>> RAW uploaded-file: ~S~%" uploaded-file)
+            (format t "~%>>> upload-file: ~S~%" uploaded-file)
             (format t "    type: ~S~%" (type-of uploaded-file))
-            ;; Пытаемся извлечь временный путь и имя файла
-            (let* ((temp-path 
-                     (cond ((pathnamep uploaded-file)
-                            uploaded-file)
-                           ((and (consp uploaded-file) (pathnamep (first uploaded-file)))
-                            (first uploaded-file))
-                           (t (error "Cannot determine temp file path from ~S" uploaded-file))))
-                   (orig-name
-                     (cond ((and (consp uploaded-file) (stringp (second uploaded-file)))
-                            (second uploaded-file))
-                           ((and (consp uploaded-file) (pathnamep (second uploaded-file)))
-                            (file-namestring (second uploaded-file)))
-                           ((stringp uploaded-file)
-                            (file-namestring (pathname uploaded-file)))
-                           (t (format nil "file-~A.dat" (get-universal-time)))))
-                   (dest-path (merge-pathnames (make-pathname :name orig-name)
-                                               request-dir)))
-              (format t "    temp-path: ~A~%" temp-path)
-              (format t "    orig-name: ~A~%" orig-name)
-              (format t "    dest-path: ~A~%" dest-path)
-              (uiop:copy-file temp-path dest-path)
-              (format t "<<< Файл скопирован успешно~%"))))
+            (cond
+              ((and (consp uploaded-file) (>= (length uploaded-file) 2))
+               (let ((temp-path (first uploaded-file))
+                     (orig-name (second uploaded-file)))
+                 (format t "    temp-path: ~S, orig-name: ~S~%" temp-path orig-name)
+                 (if (and (pathnamep temp-path) (stringp orig-name))
+                     (let ((dest-path (merge-pathnames (make-pathname :name orig-name) request-dir)))
+                       (format t "    dest-path: ~S~%" dest-path)
+                       (uiop:copy-file temp-path dest-path)
+                       (format t "<<< File copied~%"))
+                     (error "Invalid uploaded-file structure: temp-path or orig-name not of expected type"))))
+              (t
+               (error "Unexpected uploaded-file format: ~S" uploaded-file)))))
         ;; Возвращаем успех
         (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
     (error (e)
       (setf (hunchentoot:return-code*) 400)
       (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
-
 
 
 (defun start-server (&key (port 11111))
