@@ -298,7 +298,6 @@
 ;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
 ;           (error e))))))    
 
-
 (defun send-to-bitrix (data request-dir)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
@@ -317,15 +316,13 @@
                 (find-if (lambda (f)
                            (let ((name (file-namestring f)))
                              (and (not (equal name "data.json"))
-                                  (not (equal name "data.lisp"))))
-                         files)))))
-      ;; Если файл есть, добавляем информацию в описание
+                                  (not (equal name "data.lisp")))))
+                         files)))))   ; <- второй аргумент files добавлен
       (when file-attachment
         (setf description
               (concatenate 'string description
                            (format nil "~%~%Приложен файл: ~A"
                                    (file-namestring file-attachment)))))
-      ;; Преобразуем auditors-val в список и добавляем user_id, если он валидный
       (flet ((ensure-list (x)
                (if (listp x) x (list x))))
         (let* ((base-auditors (ensure-list auditors-val))
@@ -363,7 +360,7 @@
                   (error "Bitrix request failed with status ~A" status)))
             (dex:http-request-failed (e)
               (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
-              (error e)))))))))
+              (error e))))))))
 
 
 (defun send-to-glpi (data)
