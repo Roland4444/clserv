@@ -459,10 +459,12 @@ textarea { width: 100%; font-family: monospace; }
     ("data" . (("NAME" . ,file-name)))
     ("fileContent" . (,file-name ,file-content))))
 
-(defun make-bitrix-task-update-payload (task-id file-id-with-prefix)
+
+ (defun make-bitrix-task-update-payload (task-id file-id-with-prefix)
   "Создаёт payload для прикрепления файла к задаче (tasks.task.update)."
-  `(("taskId" . ,task-id)
-    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix))))))
+  (list (cons "taskId" task-id)
+        (cons "fields"
+              (list (cons "UF_TASK_WEBDAV_FILES" (list file-id-with-prefix))))))   
 
 
 (defun upload-file-to-bitrix-task-helper (upload-url file-path)
