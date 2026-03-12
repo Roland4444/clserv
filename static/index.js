@@ -190,36 +190,52 @@
                             });
                             document.getElementById('selectBtn')?.addEventListener('click', () => {
                                 formData.category = selectedCategory.value;
-                                state = 1;
+                                state = 6;  // раньше было state = 1
                                 createPanel();
                             });
                         }, 0);
                         break;
                     case 6: // Выбор срочности
-                    div.innerHTML = `
-                        <h2>Укажите срочность</h2>
-                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
-                        <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="priority" value="very_high" ${formData.priority === 'very_high' ? 'checked' : ''}> Очень высокая
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="priority" value="high" ${formData.priority === 'high' ? 'checked' : ''}> Высокая
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="priority" value="medium" ${formData.priority === 'medium' ? 'checked' : ''}> Средняя
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="priority" value="low" ${formData.priority === 'low' ? 'checked' : ''}> Низкая
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="priority" value="very_low" ${formData.priority === 'very_low' ? 'checked' : ''}> Очень низкая
-                        </label>
-                        </div>
-                        <div>
-                            <button id="backBtn">Назад</button>
-                            <button id="nextBtn">Далее</button>
-                        </div>
-                        `;
+                    // div.innerHTML = `
+                    //     <h2>Укажите срочность</h2>
+                    //     <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                    //     <label style="display: flex; align-items: center; gap: 10px;">
+                    //         <input type="radio" name="priority" value="very_high" ${formData.priority === 'very_high' ? 'checked' : ''}> Очень высокая
+                    //     </label>
+                    //     <label style="display: flex; align-items: center; gap: 10px;">
+                    //         <input type="radio" name="priority" value="high" ${formData.priority === 'high' ? 'checked' : ''}> Высокая
+                    //     </label>
+                    //     <label style="display: flex; align-items: center; gap: 10px;">
+                    //         <input type="radio" name="priority" value="medium" ${formData.priority === 'medium' ? 'checked' : ''}> Средняя
+                    //     </label>
+                    //     <label style="display: flex; align-items: center; gap: 10px;">
+                    //         <input type="radio" name="priority" value="low" ${formData.priority === 'low' ? 'checked' : ''}> Низкая
+                    //     </label>
+                    //     <label style="display: flex; align-items: center; gap: 10px;">
+                    //         <input type="radio" name="priority" value="very_low" ${formData.priority === 'very_low' ? 'checked' : ''}> Очень низкая
+                    //     </label>
+                    //     </div>
+                    //     <div>
+                    //         <button id="backBtn">Назад</button>
+                    //         <button id="nextBtn">Далее</button>
+                    //     </div>
+                    //     `;
+                      div.innerHTML = `
+        <h2>Укажите срочность</h2>
+        <select id="prioritySelect" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #311b92; color: white; border: 1px solid #795548; border-radius: 8px;">
+            <option value="very_high" ${formData.priority === 'very_high' ? 'selected' : ''}>Очень высокая</option>
+            <option value="high" ${formData.priority === 'high' ? 'selected' : ''}>Высокая</option>
+            <option value="medium" ${formData.priority === 'medium' ? 'selected' : ''}>Средняя</option>
+            <option value="low" ${formData.priority === 'low' ? 'selected' : ''}>Низкая</option>
+            <option value="very_low" ${formData.priority === 'very_low' ? 'selected' : ''}>Очень низкая</option>
+        </select>
+        <div>
+            <button id="backBtn">Назад</button>
+            <button id="nextBtn">Далее</button>
+        </div>
+    `;
+               
+
                     break;    
                     case 1: // Ввод темы
                         div.innerHTML = `
@@ -270,7 +286,7 @@
                             input.value = formData.title;
                             input.addEventListener('input', (e) => formData.title = e.target.value);
                         }
-                        document.getElementById('backBtn')?.addEventListener('click', () => { state = 0; createPanel(); });
+                        document.getElementById('backBtn')?.addEventListener('click', () => { state = 6; createPanel(); });   // раньше было state = 0
                         document.getElementById('nextBtn')?.addEventListener('click', () => {
                             if (formData.title.trim()) state = 2;
                             else alert('Введите тему');
@@ -308,6 +324,43 @@
                             createPanel();
                         });
                     }
+
+
+                    else if (state === 6) {
+                    //     const radios = div.querySelectorAll('input[name="priority"]');
+                    //     radios.forEach(radio => {
+                    //     radio.addEventListener('change', (e) => {
+                    //             formData.priority = e.target.value;
+                    //         });
+                    //     });
+                    // document.getElementById('backBtn')?.addEventListener('click', () => {
+                    //     state = 5; // возврат к подтверждению категории
+                    //     createPanel();
+                    // });
+                    // document.getElementById('nextBtn')?.addEventListener('click', () => {
+                    //     if (!formData.priority) formData.priority = 'medium'; // значение по умолчанию, если ничего не выбрано
+                    //     state = 1; // переход к вводу темы
+                    //     createPanel();
+                    // });
+                        const select = div.querySelector('#prioritySelect');
+                        if (select) {
+                            select.value = formData.priority;
+                            select.addEventListener('change', (e) => {
+                            formData.priority = e.target.value;
+                        });
+                        }
+                        document.getElementById('backBtn')?.addEventListener('click', () => {
+                        state = 5; // возврат к подтверждению категории
+                        createPanel();
+                        });
+                        document.getElementById('nextBtn')?.addEventListener('click', () => {
+                        if (select)             formData.priority = select.value; // фиксируем выбор
+                        state = 1; // переход к вводу темы
+                        createPanel();
+                        });
+
+
+                }
                 }, 0);
 
                 // Создаём CSS2DObject
@@ -328,6 +381,8 @@
     		data.append('user_id', formData.user_id);
     		data.append('user_email', formData.user_email);
     		data.append('user_phone', formData.user_phone);
+            data.append('priority', formData.priority);
+
     		if (formData.file) data.append('file', formData.file);
         	fetch('/create-task', {method: 'POST',    body: data})
     				.then(response => response.json())
