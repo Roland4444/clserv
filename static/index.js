@@ -50,7 +50,7 @@
                             const user = result.data();
                             var info__ = 'data::'+ JSON.stringify(user, null, 2)
                             console.log(info__)
-                            alert(info__)
+                        //    alert(info__)
 
                             var email =  user.EMAIL
                             var id__  =  user.ID
@@ -244,8 +244,8 @@
                             <input type="text" id="titleInput" placeholder="Тема" value="${formData.title}">
                             <div>
                                 <button id="backBtn">Назад</button>
-                                <button id="nextBtn")>Далее</button>
-                            </div>
+                                <button id="nextBtn">Далее</button>
+                                                            </div>
                         `;
                         break;
                     case 2: // Ввод описания
@@ -260,7 +260,7 @@
                         break;
                     case 3: // Загрузка файла (опционально)
                         div.innerHTML = `
-                            <h2>Загрузите файл (необязательно)888888888888888888888</h2>
+                            <h2>Загрузите файл (необязательно)</h2>
                             <input type="file" id="fileInput" accept="image/*,video/*">
                             <div class="file-info" id="fileInfo">${formData.file ? formData.file.name : 'Файл не выбран'}</div>
                             <div>
