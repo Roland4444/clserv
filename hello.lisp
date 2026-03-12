@@ -398,20 +398,17 @@ textarea { width: 100%; font-family: monospace; }
 
           
 
-(defun attach-file-to-bitrix-task (task-id file-id-with-prefix)
+(defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
   "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID."
-  (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
-                           "/tasks.task.update"))
-         (payload `(("taskId" . ,task-id)
-                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix)))))))
+  (let ((payload `(("taskId" . ,task-id)
+                   ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix)))))))
     (multiple-value-bind (body status)
-        (dex:post url
+        (dex:post attach-url
                   :headers '(("Content-Type" . "application/json"))
                   :content (cl-json:encode-json-to-string payload))
       (if (= status 200)
           body
           (error "Failed to attach file, status ~A: ~A" status body)))))
-
 
 
 
@@ -437,8 +434,29 @@ textarea { width: 100%; font-family: monospace; }
       2
       1))
 
+
+(defun upload-file-to-bitrix-task-helper (upload-url file-path)
+  "Загружает файл по заданному URL и возвращает ID объекта диска."
+  (let* ((file-name (file-namestring file-path))
+         (file-content 
+           (with-open-file (stream file-path :element-type '(unsigned-byte 8))
+             (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
+               (read-sequence bytes stream)
+               (cl-base64:usb8-array-to-base64-string bytes))))
+         (payload `(("id" . 1)
+                    ("data" . (("NAME" . ,file-name)))
+                    ("fileContent" . (,file-name ,file-content)))))
+    (multiple-value-bind (body status)
+        (dex:post upload-url
+                  :headers '(("Content-Type" . "application/json"))
+                  :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          (let ((json (cl-json:decode-json-from-string body)))
+            (cdr (assoc :ID (cdr (assoc :result json)))))
+          (error "Failed to upload file, status ~A: ~A" status body)))))      
+
 (defun send-to-bitrix (data request-dir)
-  (let ((url (gethash :bitrix-url *config*))
+  (let ((base-url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
         (auditors-val (gethash :bitrix-auditors *config*))
         (category (cdr (assoc :category data)))
@@ -446,7 +464,7 @@ textarea { width: 100%; font-family: monospace; }
         (description (or (cdr (assoc :description data)) ""))
         (priority (cdr (assoc :priority data)))
         (user-id-str (cdr (assoc :user_id data))))
-    (unless url
+    (unless base-url
       (error "Bitrix URL не настроен в конфигурации"))
     ;; Проверяем наличие файла в папке запроса (кроме data.json и data.lisp)
     (let ((file-attachment
@@ -486,30 +504,33 @@ textarea { width: 100%; font-family: monospace; }
                             ("GROUP_ID" . 10)))))
               (json-payload (cl-json:encode-json-to-string payload)))
           ;; 1. Создаём задачу
-          (multiple-value-bind (create-body create-status)
-              (dex:post url
-                        :headers '(("Content-Type" . "application/json"))
-                        :content json-payload)
-            (if (>= create-status 400)
-                (error "Bitrix task creation failed: ~A" create-body)
-                (progn
-                  (format t "~%Bitrix задача создана, ответ: ~A~%" create-body)
-                  (let ((task-id (parse-bitrix-task-id create-body)))
-                    ;; 2. Если есть файл, загружаем и прикрепляем
-                    (when file-attachment
-                      (handler-case
-                          (let ((file-id (upload-file-to-bitrix-task task-id file-attachment)))
-                            ;; Добавляем префикс "n" перед ID
-                            (attach-file-to-bitrix-task task-id (format nil "n~A" file-id))
-                            (format t "~%Файл ~A прикреплён к задаче ~A~%" 
-                                    (file-namestring file-attachment) task-id))
-                        (error (e)
-                          (format t "~%Ошибка при загрузке/прикреплении файла: ~A~%" e)
-                          ;; Добавляем информацию о файле в описание
-                          (setf description
-                                (concatenate 'string description
-                                             (format nil "~%~%Приложен файл: ~A (не удалось прикрепить автоматически)"
-                                                     (file-namestring file-attachment))))))))))))))))
+          (let ((create-url (concatenate 'string base-url "tasks.task.add")))
+            (multiple-value-bind (create-body create-status)
+                (dex:post create-url
+                          :headers '(("Content-Type" . "application/json"))
+                          :content json-payload)
+              (if (>= create-status 400)
+                  (error "Bitrix task creation failed: ~A" create-body)
+                  (progn
+                    (format t "~%Bitrix задача создана, ответ: ~A~%" create-body)
+                    (let ((task-id (parse-bitrix-task-id create-body)))
+                      ;; 2. Если есть файл, загружаем и прикрепляем
+                      (when file-attachment
+                        (handler-case
+                            (let* ((upload-url (concatenate 'string base-url "disk.folder.uploadfile"))
+                                   (file-id (upload-file-to-bitrix-task-helper upload-url file-attachment)))
+                              ;; Добавляем префикс "n" перед ID
+                              (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
+                                (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id)))
+                              (format t "~%Файл ~A прикреплён к задаче ~A~%" 
+                                      (file-namestring file-attachment) task-id))
+                          (error (e)
+                            (format t "~%Ошибка при загрузке/прикреплении файла: ~A~%" e)
+                            ;; Добавляем информацию о файле в описание
+                            (setf description
+                                  (concatenate 'string description
+                                               (format nil "~%~%Приложен файл: ~A (не удалось прикрепить автоматически)"
+                                                       (file-namestring file-attachment)))))))))))))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
