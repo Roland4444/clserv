@@ -299,6 +299,7 @@
 ;           (error e))))))    
 
 (defun send-to-bitrix (data request-dir)
+  (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
         (auditors-val (gethash :bitrix-auditors *config*))
@@ -307,17 +308,22 @@
         (description (or (cdr (assoc :description data)) ""))
         (priority (cdr (assoc :priority data)))
         (user-id-str (cdr (assoc :user_id data))))
+    (format t "DEBUG: got params: url=~A, category=~A, title=~A, priority=~A, user-id-str=~A~%" 
+            url category title priority user-id-str)
     (unless url
       (error "Bitrix URL не настроен в конфигурации"))
     ;; Проверяем наличие файла в папке запроса (кроме data.json и data.lisp)
     (let ((file-attachment
             (when (probe-file request-dir)
               (let ((files (directory (merge-pathnames "*" request-dir))))
+                (format t "DEBUG: files in dir: ~S~%" files)
                 (find-if (lambda (f)
                            (let ((name (file-namestring f)))
+                             (format t "DEBUG: checking file ~S, name ~S~%" f name)
                              (and (not (equal name "data.json"))
                                   (not (equal name "data.lisp")))))
-                         files)))))   ; <- второй аргумент files добавлен
+                         files)))))
+      (format t "DEBUG: file-attachment = ~S~%" file-attachment)
       (when file-attachment
         (setf description
               (concatenate 'string description
@@ -350,6 +356,7 @@
                             ("PRIORITY" . ,bitrix-priority)
                             ("GROUP_ID" . 10)))))
               (json-payload (cl-json:encode-json-to-string payload)))
+          (format t "DEBUG: payload constructed, json-payload: ~A~%" json-payload)
           (handler-case
               (multiple-value-bind (body status)
                   (dex:post url
