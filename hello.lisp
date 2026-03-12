@@ -27,9 +27,12 @@
     (:glpi-base . "http://192.168.1.98/apirest.php")
     (:glpi-app-token . "mol6EowqT6ktBj8NLmTAvHXs6IJpDm0Pn5D9qL7c")
     (:glpi-user-token . "K4YWmdgTWl5IBVwwHK5Cq2CQ7VXwkTE1OaC71dZf")
-    (:bitrix-enabled . nil)      ; включена отправка в Bitrix     t - true
-    (:glpi-enabled . nil)       ; отключена отправка в GLPI (по умолчанию)
-    (:processing-enabled . nil)   ; <-- новый ключ, выключен по умолчанию
+    (:bitrix-enabled . nil)
+    (:glpi-enabled . nil)
+    (:processing-enabled . nil)
+    ;; Общее значение для аудиторов (может быть списком или числом)
+    (:bitrix-auditors . (26))
+    ;; Ответственные по категориям
     (:bitrix-responsible
      . (("orgtech" . 1)
         ("software" . 1)
@@ -39,6 +42,7 @@
         ("providers" . 1)
         ("cameras" . 1)
         ("mobile" . 1)))
+    ;; GLPI requester по категориям
     (:glpi-requester
      . (("orgtech" . 2)
         ("software" . 2)
@@ -47,8 +51,7 @@
         ("meters" . 2)
         ("providers" . 2)
         ("cameras" . 2)
-        ("mobile" . 2))))
-  "Ассоциативный список с настройками по умолчанию.")
+        ("mobile" . 2)))))
 
 
 (defparameter *config* (make-hash-table :test 'equal)
@@ -299,37 +302,41 @@
 (defun send-to-bitrix (data)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
+        (auditors-val (gethash :bitrix-auditors *config*))
         (category (cdr (assoc :category data)))
         (title (or (cdr (assoc :title data)) "Без темы"))
         (description (or (cdr (assoc :description data)) "")))
     (unless url
       (error "Bitrix URL не настроен в конфигурации"))
-    (let* ((responsible-id
-             (if responsible-alist
-                 (or (cdr (assoc category responsible-alist :test #'string=)) 1)
-                 1))
-           (payload `(("fields" .
-                       (("TITLE" . ,title)
-                        ("DESCRIPTION" . ,description)
-                        ("RESPONSIBLE_ID" . ,responsible-id)
-                        ("CREATED_BY" . 1)
-                        ("ACCOMPLICES" . (14))
-                        ("AUDITORS" . (26))
-                        ("DEADLINE" . "2025-03-10T18:00:00+03:00")
-                        ("PRIORITY" . 2)   ; можно заменить на priority из data
-                        ("GROUP_ID" . 10)))))
-          (json-payload (cl-json:encode-json-to-string payload)))
-      (handler-case
-          (multiple-value-bind (body status)
-              (dex:post url
-                        :headers '(("Content-Type" . "application/json"))
-                        :content json-payload)
-            (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
-            (when (>= status 400)
-              (error "Bitrix request failed with status ~A" status)))
-        (dex:http-request-failed (e)
-          (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
-          (error e))))))
+    ;; Преобразуем auditors-val в список, если необходимо
+    (flet ((ensure-list (x)
+             (if (listp x) x (list x))))
+      (let* ((responsible-id
+               (if responsible-alist
+                   (or (cdr (assoc category responsible-alist :test #'string=)) 1)
+                   1))
+             (auditors-list (ensure-list auditors-val))
+             (payload `(("fields" .
+                         (("TITLE" . ,title)
+                          ("DESCRIPTION" . ,description)
+                          ("RESPONSIBLE_ID" . ,responsible-id)
+                          ("CREATED_BY" . 1)
+                          ("AUDITORS" . ,auditors-list)
+                          ("DEADLINE" . "2025-03-10T18:00:00+03:00")
+                          ("PRIORITY" . 2)
+                          ("GROUP_ID" . 10)))))
+            (json-payload (cl-json:encode-json-to-string payload)))
+        (handler-case
+            (multiple-value-bind (body status)
+                (dex:post url
+                          :headers '(("Content-Type" . "application/json"))
+                          :content json-payload)
+              (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
+              (when (>= status 400)
+                (error "Bitrix request failed with status ~A" status)))
+          (dex:http-request-failed (e)
+            (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
+            (error e)))))))
 
 
 (defun send-to-glpi (data)
