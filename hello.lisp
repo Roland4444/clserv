@@ -13,7 +13,7 @@
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
-  #:test-bitrix-update-json))
+  #:test-bitrix-update-json   #:test-find-uploaded-file))
 (in-package :hello)
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -420,6 +420,53 @@ textarea { width: 100%; font-family: monospace; }
 
 
 ;; Запуск: (test-extract-id)
+
+
+(defun test-find-uploaded-file ()
+  (let* ((test-dir (make-pathname :directory '(:relative "test-upload")))
+         (test-dir-pathname (ensure-directories-exist test-dir)))
+    (unwind-protect
+         (progn
+           ;; Создаём тестовые файлы
+           (with-open-file (f (merge-pathnames "data.json" test-dir-pathname)
+                              :direction :output :if-exists :supersede)
+             (write-line "{}" f))
+           (with-open-file (f (merge-pathnames "data.lisp" test-dir-pathname)
+                              :direction :output :if-exists :supersede)
+             (write-line "()" f))
+           (with-open-file (f (merge-pathnames "test.txt" test-dir-pathname)
+                              :direction :output :if-exists :supersede)
+             (write-line "hello" f))
+
+           ;; Тест 1: должен найти test.txt
+           (let ((result (find-uploaded-file test-dir-pathname)))
+             (unless (and result
+                          (equal (file-namestring result) "test.txt"))
+               (error "Test 1 failed: expected test.txt, got ~S" result))
+             (format t "Test 1 passed~%"))
+
+           ;; Тест 2: если удалить test.txt, должен вернуть NIL
+           (delete-file (merge-pathnames "test.txt" test-dir-pathname))
+           (let ((result (find-uploaded-file test-dir-pathname)))
+             (unless (null result)
+               (error "Test 2 failed: expected NIL, got ~S" result))
+             (format t "Test 2 passed~%"))
+
+           ;; Тест 3: если добавить ещё один файл, должен вернуть первый
+           (with-open-file (f (merge-pathnames "other.png" test-dir-pathname)
+                              :direction :output :if-exists :supersede)
+             (write-line "fake" f))
+           (let ((result (find-uploaded-file test-dir-pathname)))
+             (unless (and result
+                          (member (file-namestring result) '("other.png") :test #'string=))
+               (error "Test 3 failed: expected other.png, got ~S" result))
+             (format t "Test 3 passed~%"))
+
+           (format t "All tests passed~%"))
+      ;; очистка: удаляем временную директорию
+      (uiop:delete-directory-tree test-dir-pathname :validate t))))
+
+;; Запуск: (test-find-uploaded-file)
 
 (defun tests ()
   (format t "Testing extract-number-from-json-string...~%")
