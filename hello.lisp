@@ -368,40 +368,34 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|____|_|  ||   ||     || \ \    ||   // \\
 
 ;;; Функция для извлечения ID из ответа Bitrix после загрузки файла
-(defun extract-id-from-bitrix-response (json-response)
-  "Извлекает ID из JSON-ответа Bitrix (уже декодированного в ассоциативный список).
-   Поддерживает ключи в формате :ID, \"ID\", ID (символ)."
-  (let ((result (cdr (assoc :result json-response))))
-    (unless result
-      (error "No :result in response"))
-    (or (cdr (assoc "ID" result :test #'equal))
-        (cdr (assoc :ID result))
-        (cdr (assoc 'ID result))
-        (error "No ID field in result, available keys: ~S" (mapcar #'car result)))))
+
+(defun extract-id-from-bitrix-response (result)
+  "Извлекает ID из result, ища элемент с именем символа \"+ID+\"."
+  (let* ((keys (mapcar #'car result))
+         (id-assoc (find "+ID+" keys :test #'string= :key #'symbol-name)))
+    (format t "    result keys: ~S~%" keys)
+    (if id-assoc
+        (let ((id-value (cdr (assoc id-assoc result))))
+          (format t "    extracted file-id: ~A~%" id-value)
+          id-value)
+        (error "No ID field in result, available keys: ~S" keys))))        
 
 ;;; Тесты для extract-id-from-bitrix-response
 (defun tests ()
   (format t "Running tests for EXTRACT-ID-FROM-BITRIX-RESPONSE...~%")
-  ;; Тест 1: ключ как строка "ID"
-  (let ((resp1 '((:result . (("ID" . 123) ("NAME" . "file.txt"))))))
+  ;; Тест 1: ключ как :+ID+ (реальный формат от cl-json)
+  (let ((resp1 '((:+ID+ . 123) (:+NAME+ . "file.txt"))))
     (assert (= (extract-id-from-bitrix-response resp1) 123)))
-  ;; Тест 2: ключ как ключевое слово :ID
-  (let ((resp2 '((:result . ((:ID . 456) ("NAME" . "file.txt"))))))
-    (assert (= (extract-id-from-bitrix-response resp2) 456)))
-  ;; Тест 3: ключ как символ ID
-  (let ((resp3 '((:result . ((ID . 789) ("NAME" . "file.txt"))))))
-    (assert (= (extract-id-from-bitrix-response resp3) 789)))
-  ;; Тест 4: отсутствие поля ID
-  (let ((resp4 '((:result . (("NAME" . "file.txt"))))))
+  ;; Тест 2: отсутствие поля ID
+  (let ((resp2 '((:+NAME+ . "file.txt"))))
     (handler-case
         (progn
-          (extract-id-from-bitrix-response resp4)
-          (error "Test 4 failed: expected error"))
+          (extract-id-from-bitrix-response resp2)
+          (error "Test 2 failed: expected error"))
       (error (e)
-        (format t "Test 4 passed: caught expected error ~A~%" e))))
+        (format t "Test 2 passed: caught expected error ~A~%" e))))
   (format t "All tests passed for EXTRACT-ID-FROM-BITRIX-RESPONSE.~%")
   t)
-
 
 (defun parse-bitrix-task-id (response-body)
   (let ((json (cl-json:decode-json-from-string response-body)))
