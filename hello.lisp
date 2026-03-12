@@ -6,6 +6,10 @@
 (asdf:load-system :dexador)
 (asdf:load-system :cl-base64)
 
+
+
+;; Настройки Hunchentoot для поддержки больших файлов
+
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus))
@@ -24,6 +28,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||    |  ||    ||  ||\\  || ||       ||   ||   __ ::::::::::::::::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||       ||    ||  || \\ || ||_____  ||   ||    ||::::::::::::::::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||____|  ||____||  ||  \\|| ||       ||   ||____||::::::::::::::::
+
+
+(defparameter *acceptor* 
+  (make-instance 'hunchentoot:easy-acceptor 
+                 :port 11111
+                 :read-timeout 300   ; таймаут на чтение в секундах
+                 :write-timeout 300))
+
+
 (defparameter *default-config*
   '((:bitrix-url . "https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/tasks.task.add")
     (:glpi-base . "http://192.168.1.98/apirest.php")
@@ -517,7 +530,6 @@ textarea { width: 100%; font-family: monospace; }
         (description (or (cdr (assoc :description data)) "")))
     (unless (and base app-token user-token)
       (error "GLPI параметры не настроены в конфигурации"))
-    ;; Определяем requester_id по категории, иначе 2
     (let* ((requester-id
              (if requester-alist
                  (or (cdr (assoc category requester-alist :test #'string=)) 2)
@@ -530,14 +542,12 @@ textarea { width: 100%; font-family: monospace; }
                         ("_users_id_requester" . ,requester-id)))))
            (json-payload (cl-json:encode-json-to-string payload)))
       (handler-case
-          (let* ((response (dex:post url
-                                      :content-type "application/json"
-                                      :content json-payload
-                                      :headers `(("App-Token" . ,app-token)
-                                                 ("Session-Token" . ,session-token))
-                                      :want-string t))
-                 (body (car response))
-                 (status (cdr response)))
+          (multiple-value-bind (body status)
+              (dex:post url
+                        :content json-payload
+                        :headers `(("App-Token" . ,app-token)
+                                   ("Session-Token" . ,session-token)
+                                   ("Content-Type" . "application/json")))
             (format t "~%GLPI ответ (статус ~A): ~A~%" status body)
             (when (>= status 400)
               (error "GLPI request failed with status ~A" status)))
@@ -547,14 +557,13 @@ textarea { width: 100%; font-family: monospace; }
 
 
 
-
 ;;;;;;;;;;;;;;PROCESS  REQUESTS;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun process-requestzzzzz (request-dir)
   "Обрабатывает одну заявку в папке REQUEST-DIR."
     (unless (typep request-dir 'pathname)
     (format t "~%process-request получил не pathname: ~S~%" request-dir)
-    (return-from process-request))
+    (return-from process-requestzzzzz))
   (let ((lisp-file (merge-pathnames "data.lisp" request-dir)))
     (when (probe-file lisp-file)
       (handler-case
@@ -601,12 +610,10 @@ textarea { width: 100%; font-family: monospace; }
 (defun get-glpi-session-token (base app-token user-token)
   (let ((url (concatenate 'string base "/initSession")))
     (handler-case
-        (let* ((response (dex:get url
-                                   :headers `(("App-Token" . ,app-token)
-                                              ("Authorization" . ,(format nil "user_token ~A" user-token)))
-                                   :want-string t))
-               (body (car response))
-               (status (cdr response)))
+        (multiple-value-bind (body status)
+            (dex:get url
+                     :headers `(("App-Token" . ,app-token)
+                                ("Authorization" . ,(format nil "user_token ~A" user-token))))
           (if (= status 200)
               (cdr (assoc :session_token (cl-json:decode-json-from-string body)))
               (error "GLPI initSession failed, status ~A: ~A" status body)))
@@ -642,20 +649,20 @@ textarea { width: 100%; font-family: monospace; }
                            (:user_id . ,user_id)
                            (:user_email . ,user_email)
                            (:user_phone . ,user_phone))))
-          ;; Сохраняем JSON (с экранированием юникода — стандартное поведение cl-json)
+          ;; Сохраняем JSON
           (with-open-file (f (merge-pathnames "data.json" request-dir)
                              :direction :output
                              :if-exists :supersede
                              :external-format :utf-8)
             (cl-json:encode-json json-data f))
-          ;; Сохраняем Lisp-представление (читабельно в REPL)
+          ;; Сохраняем Lisp-представление
           (with-open-file (f (merge-pathnames "data.lisp" request-dir)
                              :direction :output
                              :if-exists :supersede
                              :external-format :utf-8)
             (with-standard-io-syntax
               (let ((*print-readably* t))
-                (print json-data f))))   ; печатаем в формате, читаемом Lisp
+                (print json-data f))))
           ;; Если есть файл, сохраняем его
           (when uploaded-file
             (let* ((temp-path (first uploaded-file))
@@ -671,13 +678,17 @@ textarea { width: 100%; font-family: monospace; }
       (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
 
 
+
 (defun start-server (&key (port 11111))
-  (let ((acceptor (make-instance 'hunchentoot:easy-acceptor :port port)))
+  (let ((acceptor (make-instance 'hunchentoot:easy-acceptor 
+                                 :port port
+                                 :read-timeout 300
+                                 :write-timeout 300)))
     (hunchentoot:start acceptor)
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
     (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat~%")
-    acceptor))
+    acceptor))    
 
 
 
