@@ -469,21 +469,30 @@ textarea { width: 100%; font-family: monospace; }
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
-  "Прикрепляет файл к задаче Bitrix."
-  (let ((payload `(("taskId" . ,task-id)
-                   ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix))))))
-        (json-payload (cl-json:encode-json-to-string payload)))
+  (let ((payload4444 `(("taskId" . ,task-id)
+                       ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix))))))
+        (json-payload4444 (cl-json:encode-json-to-string payload4444)))
     (format t "~%>>> ATTACH REQUEST to ~A~%" attach-url)
-    (format t ">>> payload: ~S~%" payload)
-    (format t ">>> JSON: ~A~%" json-payload)
+    (format t ">>> payload4444: ~S~%" payload4444)
+    (format t ">>> JSON: ~A~%" json-payload4444)
     (multiple-value-bind (body status)
         (dex:post attach-url
                   :headers '(("Content-Type" . "application/json"))
-                  :content json-payload)
+                  :content json-payload4444)
       (format t "<<< ATTACH RESPONSE status: ~A, body: ~A~%" status body)
       (unless (= status 200)
         (error "Failed to attach file, status ~A: ~A" status body))
-      body)))
+      (let ((json (ignore-errors (cl-json:decode-json-from-string body))))
+        (if json
+            (let ((error-msg (cdr (assoc :error json))))
+              (if error-msg
+                  (error "Bitrix attach error: ~A" error-msg)
+                  (progn
+                    (format t "    Attach successful, response: ~S~%" json)
+                    body)))
+            (progn
+              (format t "    Attach response is not JSON, assuming success~%")
+              body))))))
 
 (defun format-bitrix-deadline (universal-time)
   (multiple-value-bind (second minute hour day month year)
