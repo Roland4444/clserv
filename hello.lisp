@@ -297,6 +297,31 @@
 ;         (dex:http-request-failed (e)
 ;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
 ;           (error e))))))    
+
+
+(defun format-bitrix-deadline (universal-time)
+  "Преобразует универсальное время в строку формата YYYY-MM-DDTHH:MM:SS+03:00 (московское время)."
+  (multiple-value-bind (second minute hour day month year)
+      (decode-universal-time universal-time 3) ; 3 = UTC+3
+    (format nil "~4,'0d-~2,'0d-~2,'0dT~2,'0d:~2,'0d:~2,'0d+03:00"
+            year month day hour minute second)))
+
+(defun compute-deadline (priority)
+  "Вычисляет дедлайн в зависимости от приоритета заявки.
+   Для very_high и high: +6 часов, для остальных: +1 день."
+  (let ((now (get-universal-time)))
+    (cond ((member priority '("very_high" "high") :test #'string=)
+           (format-bitrix-deadline (+ now (* 6 3600))))
+          (t
+           (format-bitrix-deadline (+ now (* 24 3600)))))))
+
+(defun compute-bitrix-priority (priority)
+  "Определяет приоритет задачи в Bitrix (2 - высокий, 1 - средний)."
+  (if (member priority '("very_high" "high") :test #'string=)
+      2
+      1))
+
+
 (defun send-to-bitrix444444 (data request-dir)
   (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
   (return-from send-to-bitrix "test"))
