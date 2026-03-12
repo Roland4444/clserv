@@ -431,8 +431,18 @@ textarea { width: 100%; font-family: monospace; }
       2
       1))
 
+(defun find-uploaded-file (request-dir)
+  "Возвращает путь к первому файлу в папке, кроме data.json и data.lisp, или NIL."
+  (when (probe-file request-dir)
+    (let* ((search-path (make-pathname :name :wild :type :wild :defaults request-dir))
+           (all-files (directory search-path)))
+      (find-if (lambda (f)
+                 (let ((name (file-namestring f)))
+                   (and (not (equal name "data.json"))
+                        (not (equal name "data.lisp")))))
+               all-files))))
 
-      
+;;; Основная функция отправки заявки в Bitrix
 (defun send-to-bitrix (data request-dir)
   (let ((base-url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
@@ -445,70 +455,58 @@ textarea { width: 100%; font-family: monospace; }
     (format t "~%=== SEND-TO-BITRIX START ===~%")
     (format t "base-url: ~A~%" base-url)
     (format t "category: ~A, title: ~A, priority: ~A, user-id: ~A~%" category title priority user-id-str)
-    (format t "    request-dir: ~A~%" request-dir)
-    (format t "    probe-file request-dir: ~A~%" (probe-file request-dir))
-    (let* ((search-path (make-pathname :name :wild :type :wild :defaults request-dir))
-           (all-files (when (probe-file request-dir)
-                        (directory search-path))))
-      (format t "    search-path: ~A~%" search-path)
-      (format t "    all-files from directory: ~S~%" all-files)
-      (let ((file-attachment
-              (find-if (lambda (f)
-                         (let ((name (file-namestring f)))
-                           (and (not (equal name "data.json"))
-                                (not (equal name "data.lisp"))))
-                       all-files)))
-        (format t "    file-attachment: ~S~%" file-attachment)
-        ;; ШАГ 1: загружаем файл (если есть)
-        (let ((file-id nil))
-          (when file-attachment
-            (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
-              (setf file-id (upload-file-to-bitrix-task-helper upload-url file-attachment))
-              (format t "    file-id after upload: ~A~%" file-id)))
-          ;; ШАГ 2: создаём задачу (всегда)
-          (flet ((ensure-list (x) (if (listp x) x (list x))))
-            (let* ((base-auditors (ensure-list auditors-val))
-                   (user-id (and user-id-str
-                                 (not (equal user-id-str ""))
-                                 (not (equal user-id-str "undefined"))
-                                 (parse-integer user-id-str :junk-allowed t)))
-                   (auditors-list (if user-id (adjoin user-id base-auditors) base-auditors))
-                   (responsible-id
-                     (if responsible-alist
-                         (or (cdr (assoc category responsible-alist :test #'string=)) 1)
-                         1))
-                   (deadline (compute-deadline priority))
-                   (bitrix-priority (compute-bitrix-priority priority))
-                   (payload `(("fields" .
-                               (("TITLE" . ,title)
-                                ("DESCRIPTION" . ,description)
-                                ("RESPONSIBLE_ID" . ,responsible-id)
-                                ("CREATED_BY" . 1)
-                                ("AUDITORS" . ,auditors-list)
-                                ("DEADLINE" . ,deadline)
-                                ("PRIORITY" . ,bitrix-priority)
-                                ("GROUP_ID" . 10)))))
-                  (json-payload (cl-json:encode-json-to-string payload)))
-              (format t "~%>>> CREATE TASK REQUEST~%")
-              (format t "payload: ~S~%" payload)
-              (format t "JSON: ~A~%" json-payload)
-              (let ((create-url (concatenate 'string base-url "tasks.task.add")))
-                (multiple-value-bind (create-body create-status)
-                    (dex:post create-url
-                              :headers '(("Content-Type" . "application/json"))
-                              :content json-payload)
-                  (format t "<<< CREATE TASK RESPONSE status: ~A, body: ~A~%" create-status create-body)
-                  (if (>= create-status 400)
-                      (error "Bitrix task creation failed: ~A" create-body)
-                      (let ((task-id (parse-bitrix-task-id create-body)))
-                        (format t "task-id: ~A~%" task-id)
-                        ;; ШАГ 3: прикрепляем файл (если есть)
-                        (when file-id
-                          (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
-                            (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id))
-                            (format t "Файл прикреплён к задаче ~A~%" task-id)))
-                        (format t "=== SEND-TO-BITRIX END ===~%")
-                        task-id))))))))))))
+
+    ;; 1. Ищем приложенный файл
+    (let* ((file-path (find-uploaded-file request-dir))
+           (file-id (when file-path
+                      (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
+                        (upload-file-to-bitrix-task-helper upload-url file-path))))
+           ;; 2. Подготовка данных для задачи
+           (user-id (and user-id-str
+                         (not (equal user-id-str ""))
+                         (not (equal user-id-str "undefined"))
+                         (parse-integer user-id-str :junk-allowed t)))
+           (base-auditors (if (listp auditors-val) auditors-val (list auditors-val)))
+           (auditors-list (if user-id (adjoin user-id base-auditors) base-auditors))
+           (responsible-id
+             (if responsible-alist
+                 (or (cdr (assoc category responsible-alist :test #'string=)) 1)
+                 1))
+           (deadline (compute-deadline priority))
+           (bitrix-priority (compute-bitrix-priority priority))
+           (payload `(("fields" .
+                       (("TITLE" . ,title)
+                        ("DESCRIPTION" . ,description)
+                        ("RESPONSIBLE_ID" . ,responsible-id)
+                        ("CREATED_BY" . 1)
+                        ("AUDITORS" . ,auditors-list)
+                        ("DEADLINE" . ,deadline)
+                        ("PRIORITY" . ,bitrix-priority)
+                        ("GROUP_ID" . 10)))))
+           (json-payload (cl-json:encode-json-to-string payload))
+           (create-url (concatenate 'string base-url "tasks.task.add")))
+      (format t "    file-path: ~S, file-id: ~S~%" file-path file-id)
+      (format t "~%>>> CREATE TASK REQUEST~%")
+      (format t "payload: ~S~%" payload)
+      (format t "JSON: ~A~%" json-payload)
+
+      ;; 3. Создаём задачу
+      (multiple-value-bind (create-body create-status)
+          (dex:post create-url
+                    :headers '(("Content-Type" . "application/json"))
+                    :content json-payload)
+        (format t "<<< CREATE TASK RESPONSE status: ~A, body: ~A~%" create-status create-body)
+        (if (>= create-status 400)
+            (error "Bitrix task creation failed: ~A" create-body)
+            (let ((task-id (parse-bitrix-task-id create-body)))
+              (format t "task-id: ~A~%" task-id)
+              ;; 4. Прикрепляем файл, если был загружен
+              (when file-id
+                (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
+                  (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id))
+                  (format t "Файл прикреплён к задаче ~A~%" task-id)))
+              (format t "=== SEND-TO-BITRIX END ===~%")
+              task-id))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
