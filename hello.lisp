@@ -2,12 +2,12 @@
 (asdf:load-system :hunchentoot)
 (asdf:load-system :cl-json)
 (asdf:load-system :frugal-uuid)
+(asdf:load-system :bordeaux-threads)
+(asdf:load-system :dexador)
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
-  ;; (:import-from :hunchentoot ... ) - полностью удалите эту строку!
   (:export #:start-server #:main #:plus #:test-plus))
 (in-package :hello)
-
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
 
@@ -18,6 +18,87 @@
   (assert (= (plus 0 0) 0))
   (format t "All tests passed.~%")
   t)
+                                         ;;______   ______              ______        ______
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||    |  ||    ||  ||\\  || ||       ||   ||   __ ::::::::::::::::
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||       ||    ||  || \\ || ||_____  ||   ||    ||::::::::::::::::
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||____|  ||____||  ||  \\|| ||       ||   ||____||::::::::::::::::
+(defparameter *default-config*
+  '((:bitrix-url . "https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/tasks.task.add")
+    (:glpi-base . "http://192.168.1.98/apirest.php")
+    (:glpi-app-token . "mol6EowqT6ktBj8NLmTAvHXs6IJpDm0Pn5D9qL7c")
+    (:glpi-user-token . "K4YWmdgTWl5IBVwwHK5Cq2CQ7VXwkTE1OaC71dZf")
+    (:bitrix-enabled . nil)      ; включена отправка в Bitrix     t - true
+    (:glpi-enabled . nil)       ; отключена отправка в GLPI (по умолчанию)
+    (:processing-enabled . nil)   ; <-- новый ключ, выключен по умолчанию
+    (:bitrix-responsible
+     . (("orgtech" . 1)
+        ("software" . 1)
+        ("computers" . 1)
+        ("network" . 1)
+        ("meters" . 1)
+        ("providers" . 1)
+        ("cameras" . 1)
+        ("mobile" . 1)))
+    (:glpi-requester
+     . (("orgtech" . 2)
+        ("software" . 2)
+        ("computers" . 2)
+        ("network" . 2)
+        ("meters" . 2)
+        ("providers" . 2)
+        ("cameras" . 2)
+        ("mobile" . 2))))
+  "Ассоциативный список с настройками по умолчанию.")
+
+
+(defparameter *config* (make-hash-table :test 'equal)
+  "Глобальная хеш-таблица с текущей конфигурацией.")
+
+(defun load-config (&optional (filename "config.lisp"))
+  "Загружает конфигурацию из FILENAME, если файл существует.
+   Если файла нет, используется *DEFAULT-CONFIG* и создаётся новый файл."
+  ;; Сначала заполняем таблицу значениями по умолчанию
+  (clrhash *config*)
+  (dolist (pair *default-config*)
+    (setf (gethash (car pair) *config*) (cdr pair)))
+  
+  ;; Если файл существует, читаем его и обновляем таблицу
+  (when (probe-file filename)
+    (with-open-file (in filename
+                        :direction :input
+                        :external-format :utf-8)
+      (with-standard-io-syntax
+        (let ((alist (read in)))
+          (dolist (pair alist)
+            (setf (gethash (car pair) *config*) (cdr pair))))))
+    (format t "Конфигурация загружена из ~A~%" filename))
+  
+  ;; Сохраняем текущую таблицу в файл (если его не было, он создастся)
+  (save-config filename)
+  *config*)
+
+(defun save-config (&optional (filename "config.lisp"))
+  "Сохраняет текущую конфигурацию (как alist) в FILENAME."
+  (with-open-file (out filename
+                       :direction :output
+                       :if-exists :supersede
+                       :external-format :utf-8)
+    (with-standard-io-syntax
+      (let ((*print-readably* t))
+        ;; Преобразуем хеш-таблицу в alist
+        (let ((alist (loop for key being the hash-keys of *config*
+                           collect (cons key (gethash key *config*)))))
+          (print alist out))))
+    (format t "Конфигурация сохранена в ~A~%" filename)))
+
+(defun reload-config ()
+  "Перезагружает конфигурацию из файла (сбрасывая изменения)."
+  (load-config))
+          
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::::::::::::::::::::::::::::::::::::::::::::::::::
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::::::::::::::::::::::::::::::::::::::::::::::::::
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::::::::::::::::::::::::::::::::::::::::::::::::::
+
 
 ;;; Работа с файлом lnk
 (defparameter *link-file* "lnk")
@@ -108,6 +189,16 @@
   (load "hello.lisp")  ; Перезагружает этот же файл
   "Reloaded")
 
+  (hunchentoot:define-easy-handler (reload-config-handler :uri "/rc") ()
+  (setf (hunchentoot:content-type*) "text/plain")
+  (handler-case
+      (progn
+        (reload-config)
+        "Config reloaded")
+    (error (e)
+      (setf (hunchentoot:return-code*) 500)
+      (format nil "Error: ~A" e))))
+
 
 (hunchentoot:define-easy-handler (up :uri "/up") ()
   (setf (hunchentoot:content-type*) "text/html")
@@ -165,12 +256,151 @@
       (format log-stream "[~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d] ~a~%"
               year month day hour minute second data))))
 
-; (hunchentoot:define-easy-handler (create-task :uri "/create-task" :default-request-type :post) ()
-;   (setf (hunchentoot:content-type*) "application/json")
-;   (let* ((raw-data (hunchentoot:raw-post-data :force-text t)))
-;     (log-request raw-data)
-;     (cl-json:encode-json-to-string '((:status . "ok") (:message . "logged")))))      
+(defun send-to-bitrix (data)
+  (let ((url (gethash :bitrix-url *config*))
+        (responsible-alist (gethash :bitrix-responsible *config*))
+        (category (cdr (assoc :category data)))
+        (title (or (cdr (assoc :title data)) "Без темы"))
+        (description (or (cdr (assoc :description data)) "")))
+    (unless url
+      (error "Bitrix URL не настроен в конфигурации"))
+    ;; Определяем ответственного по категории, если не найдено — используем 1
+    (let* ((responsible-id
+             (if responsible-alist
+                 (or (cdr (assoc category responsible-alist :test #'string=)) 1)
+                 1))
+           (payload `(("fields" .
+                       (("TITLE" . ,title)
+                        ("DESCRIPTION" . ,description)
+                        ("RESPONSIBLE_ID" . ,responsible-id)
+                        ("CREATED_BY" . 1)
+                        ("ACCOMPLICES" . (14))
+                        ("AUDITORS" . (26))
+                        ("DEADLINE" . "2025-03-10T18:00:00+03:00")
+                        ("PRIORITY" . 2)   ; можно позже заменить на priority из data
+                        ("GROUP_ID" . 10)))))
+          (json-payload (cl-json:encode-json-to-string payload)))
+      (handler-case
+          (let* ((response (dex:post url
+                                      :content-type "application/json"
+                                      :content json-payload
+                                      :want-string t))
+                 (body (car response))
+                 (status (cdr response)))
+            (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
+            (when (>= status 400)
+              (error "Bitrix request failed with status ~A" status)))
+        (dex:http-request-failed (e)
+          (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
+          (error e))))))    
 
+
+(defun send-to-glpi (data)
+  (let ((base (gethash :glpi-base *config*))
+        (app-token (gethash :glpi-app-token *config*))
+        (user-token (gethash :glpi-user-token *config*))
+        (requester-alist (gethash :glpi-requester *config*))
+        (category (cdr (assoc :category data)))
+        (title (or (cdr (assoc :title data)) "Без темы"))
+        (description (or (cdr (assoc :description data)) "")))
+    (unless (and base app-token user-token)
+      (error "GLPI параметры не настроены в конфигурации"))
+    ;; Определяем requester_id по категории, иначе 2
+    (let* ((requester-id
+             (if requester-alist
+                 (or (cdr (assoc category requester-alist :test #'string=)) 2)
+                 2))
+           (session-token (get-glpi-session-token base app-token user-token))
+           (url (concatenate 'string base "/Ticket"))
+           (payload `(("input" .
+                       (("name" . ,title)
+                        ("content" . ,description)
+                        ("_users_id_requester" . ,requester-id)))))
+           (json-payload (cl-json:encode-json-to-string payload)))
+      (handler-case
+          (let* ((response (dex:post url
+                                      :content-type "application/json"
+                                      :content json-payload
+                                      :headers `(("App-Token" . ,app-token)
+                                                 ("Session-Token" . ,session-token))
+                                      :want-string t))
+                 (body (car response))
+                 (status (cdr response)))
+            (format t "~%GLPI ответ (статус ~A): ~A~%" status body)
+            (when (>= status 400)
+              (error "GLPI request failed with status ~A" status)))
+        (dex:http-request-failed (e)
+          (format t "~%Ошибка HTTP при создании тикета GLPI: ~A~%" e)
+          (error e))))))
+
+
+
+
+;;;;;;;;;;;;;;PROCESS  REQUESTS;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun process-requestzzzzz (request-dir)
+  "Обрабатывает одну заявку в папке REQUEST-DIR."
+    (unless (typep request-dir 'pathname)
+    (format t "~%process-request получил не pathname: ~S~%" request-dir)
+    (return-from process-request))
+  (let ((lisp-file (merge-pathnames "data.lisp" request-dir)))
+    (when (probe-file lisp-file)
+      (handler-case
+          (let ((data
+                  (with-open-file (f lisp-file
+                                     :direction :input
+                                     :external-format :utf-8)
+                    (with-standard-io-syntax
+                      (read f)))))
+            (format t "~%Обработка заявки из ~A:~%" request-dir)
+            (format t "  Данные: ~S~%" data)
+            ;; Отправка в Bitrix, если включено в конфиге
+            (when (gethash :bitrix-enabled *config*)
+              (send-to-bitrix data))
+            ;; Отправка в GLPI, если включено
+            (when (gethash :glpi-enabled *config*)
+              (send-to-glpi data))
+            ;; Удаляем папку после обработки (даже если отправка не производилась)
+            (uiop:delete-directory-tree request-dir :validate t)
+            (format t "  Папка ~A удалена.~%" request-dir))
+        (error (e)
+          (format t "~%Ошибка при обработке ~A: ~A~%" request-dir e))))))
+
+(defun scan-requests ()
+  (let ((base-dir (make-pathname :directory '(:relative "requests"))))
+    (format t "~%scan-requests: base-dir = ~S~%" base-dir)
+    (format t "~%type of base-dir = ~S~%" (type-of base-dir))
+    (when (probe-file base-dir)
+      (let ((subdirs (uiop:subdirectories base-dir)))
+        (format t "~%subdirs = ~S~%" subdirs)
+        (dolist (item subdirs)
+          (format t "~%item type = ~S~%" (type-of item))
+          (if (typep item 'pathname)
+              (process-requestzzzzz item)
+              (format t "~%Пропущен элемент не pathname: ~S~%" item)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+;; Вспомогательная функция для получения сессии GLPI (теперь принимает параметры)
+(defun get-glpi-session-token (base app-token user-token)
+  (let ((url (concatenate 'string base "/initSession")))
+    (handler-case
+        (let* ((response (dex:get url
+                                   :headers `(("App-Token" . ,app-token)
+                                              ("Authorization" . ,(format nil "user_token ~A" user-token)))
+                                   :want-string t))
+               (body (car response))
+               (status (cdr response)))
+          (if (= status 200)
+              (cdr (assoc :session_token (cl-json:decode-json-from-string body)))
+              (error "GLPI initSession failed, status ~A: ~A" status body)))
+      (dex:http-request-failed (e)
+        (format t "~%Ошибка HTTP при получении токена GLPI: ~A~%" e)
+        (error e)))))
 
 (hunchentoot:define-easy-handler (create-task :uri "/create-task" :default-request-type :post) ()
   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
@@ -227,6 +457,8 @@
     (error (e)
       (setf (hunchentoot:return-code*) 400)
       (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
+
+
 (defun start-server (&key (port 11111))
   (let ((acceptor (make-instance 'hunchentoot:easy-acceptor :port port)))
     (hunchentoot:start acceptor)
@@ -235,7 +467,22 @@
     (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat~%")
     acceptor))
 
+
+
 (defun main ()
+  ;; Загружаем конфигурацию (если файла нет, создаётся с настройками по умолчанию)
+  (load-config)
+  
+  ;; Запускаем фоновый поток для обработки заявок
+  (bt:make-thread
+    (lambda ()
+      (loop
+        (sleep 10)   ; интервал сканирования
+        (when (gethash :processing-enabled *config*)
+          (scan-requests))))
+    :name "request-processor")
+  
+  ;; Запуск сервера
   (start-server)
   (loop (sleep 3600)))
 ;;; Запуск теста
