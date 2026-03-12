@@ -297,12 +297,12 @@
 ;         (dex:http-request-failed (e)
 ;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
 ;           (error e))))))    
-(defun send-to-bitrix (data request-dir)
+(defun send-to-bitrix444444 (data request-dir)
   (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
   (return-from send-to-bitrix "test"))
 
-  
-(defun send-to-bitrix222222 (data request-dir)
+
+(defun send-to-bitrix (data request-dir)
   (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
@@ -435,7 +435,7 @@
             (format t "  Данные: ~S~%" data)
             ;; Отправка в Bitrix, если включено в конфиге
             (when (gethash :bitrix-enabled *config*)
-              (send-to-bitrix data))
+              (send-to-bitrix data request-dir))
             ;; Отправка в GLPI, если включено
             (when (gethash :glpi-enabled *config*)
               (send-to-glpi data))
