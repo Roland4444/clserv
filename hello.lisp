@@ -12,7 +12,8 @@
 
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
-  (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id))
+  (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
+  #:test-bitrix-update-json))
 (in-package :hello)
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -460,11 +461,22 @@ textarea { width: 100%; font-family: monospace; }
     ("fileContent" . (,file-name ,file-content))))
 
 
- (defun make-bitrix-task-update-payload (task-id file-id-with-prefix)
-  "Создаёт payload для прикрепления файла к задаче (tasks.task.update)."
-  (list (cons "taskId" task-id)
-        (cons "fields"
-              (list (cons "UF_TASK_WEBDAV_FILES" (list file-id-with-prefix))))))   
+;; Функция формирования payload для прикрепления файла (исправленная)
+(defun make-bitrix-update-json (task-id file-id-with-prefix)
+  (format nil "{\"taskId\":~A,\"fields\":{\"UF_TASK_WEBDAV_FILES\":[\"~A\"]}}" task-id file-id-with-prefix))
+
+;; Тест (можно выполнить прямо в REPL)
+(defun test-bitrix-update-json ()
+  (let ((json (make-bitrix-update-json 232 "n1288")))
+    (assert (string= json "{\"taskId\":232,\"fields\":{\"UF_TASK_WEBDAV_FILES\":[\"n1288\"]}}"))
+    (format t "Test passed: ~A~%" json)
+    t))
+
+;; Тест, который проверяет правильность генерации JSON
+
+
+;; Запуск теста (можно скопировать в REPL)
+
 
 
 (defun upload-file-to-bitrix-task-helper (upload-url file-path)
@@ -489,17 +501,17 @@ textarea { width: 100%; font-family: monospace; }
 
 ;; Полная замена attach-file-to-bitrix-task на простую версию
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
-  (let* ((payload (make-bitrix-task-update-payload task-id file-id-with-prefix))
-         (json-payload (cl-json:encode-json-to-string payload)))
+  (let ((json-payload (make-bitrix-update-json task-id file-id-with-prefix)))
     (format t "~%>>> ATTACH REQUEST to ~A~%" attach-url)
     (format t ">>> JSON: ~A~%" json-payload)
     (multiple-value-bind (body status)
-        (dex:post attach-url :headers '(("Content-Type" . "application/json")) :content json-payload)
+        (dex:post attach-url
+                  :headers '(("Content-Type" . "application/json"))
+                  :content json-payload)
       (format t "<<< ATTACH RESPONSE status: ~A, body: ~A~%" status body)
       (unless (= status 200)
         (error "Failed to attach file, status ~A: ~A" status body))
       body)))
-
 ;
 (defun format-bitrix-deadline (universal-time)
   (multiple-value-bind (second minute hour day month year)
