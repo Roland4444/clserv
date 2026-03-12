@@ -78,18 +78,19 @@
   *config*)
 
 (defun save-config (&optional (filename "config.lisp"))
-  "Сохраняет текущую конфигурацию (как alist) в FILENAME."
+  "Сохраняет текущую конфигурацию в FILENAME, форматируя каждую пару на отдельной строке."
   (with-open-file (out filename
                        :direction :output
                        :if-exists :supersede
                        :external-format :utf-8)
     (with-standard-io-syntax
-      (let ((*print-readably* t))
-        ;; Преобразуем хеш-таблицу в alist
+      (let ((*print-readably* t)
+            (*print-pretty* t)
+            (*print-right-margin* 120))
         (let ((alist (loop for key being the hash-keys of *config*
                            collect (cons key (gethash key *config*)))))
-          (print alist out))))
-    (format t "Конфигурация сохранена в ~A~%" filename)))
+          (pprint alist out)
+          (terpri out))))))  ; все закрывающие скобки на месте
 
 (defun reload-config ()
   "Перезагружает конфигурацию из файла (сбрасывая изменения)."
