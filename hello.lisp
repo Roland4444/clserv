@@ -431,7 +431,6 @@ textarea { width: 100%; font-family: monospace; }
       2
       1))
 
-
 (defun send-to-bitrix (data request-dir)
   (let ((base-url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
@@ -446,8 +445,10 @@ textarea { width: 100%; font-family: monospace; }
     (format t "category: ~A, title: ~A, priority: ~A, user-id: ~A~%" category title priority user-id-str)
     (format t "    request-dir: ~A~%" request-dir)
     (format t "    probe-file request-dir: ~A~%" (probe-file request-dir))
-    (let ((all-files (when (probe-file request-dir)
-                       (directory (merge-pathnames "*" request-dir)))))
+    (let* ((search-path (merge-pathnames "*" request-dir))
+           (all-files (when (probe-file request-dir)
+                        (directory search-path))))
+      (format t "    search-path: ~A~%" search-path)
       (format t "    all-files from directory: ~S~%" all-files)
       (let ((file-attachment
               (find-if (lambda (f)
