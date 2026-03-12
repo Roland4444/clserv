@@ -621,6 +621,46 @@ textarea { width: 100%; font-family: monospace; }
         (format t "~%Ошибка HTTP при получении токена GLPI: ~A~%" e)
         (error e)))))
 
+
+
+(hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
+  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+  (handler-case
+      (let* ((uuid (hunchentoot:post-parameter "uuid"))
+             (uploaded-file (hunchentoot:post-parameter "file"))
+             (base-dir (make-pathname :directory '(:relative "requests")))
+             (request-dir (merge-pathnames (make-pathname :directory `(:relative ,uuid)) base-dir)))
+        ;; Проверка UUID
+        (unless (and uuid (string/= uuid ""))
+          (error "Missing or empty uuid"))
+        ;; Создаём директорию, если её нет
+        (ensure-directories-exist request-dir)
+        ;; Если файл есть, сохраняем
+        (when uploaded-file
+          (format t "~%>>> UPLOAD-FILE: ~S~%" uploaded-file)
+          (cond
+            ((and (consp uploaded-file) (>= (length uploaded-file) 2))
+             (let ((temp-path (first uploaded-file))
+                   (orig-name (second uploaded-file)))
+               (format t "    temp-path: ~S, orig-name: ~S~%" temp-path orig-name)
+               (if (and (pathnamep temp-path) (stringp orig-name))
+                   (let ((dest-path (merge-pathnames (make-pathname :name orig-name) request-dir)))
+                     (format t "    dest-path: ~S~%" dest-path)
+                     (uiop:copy-file temp-path dest-path)
+                     (format t "<<< File saved~%"))
+                   (error "Invalid uploaded-file structure"))))
+            (t
+             (error "Unexpected uploaded-file format"))))
+        ;; Возвращаем успех
+        (cl-json:encode-json-to-string `((:status . "ok") (:message . "File uploaded"))))
+    (error (e)
+      (setf (hunchentoot:return-code*) 400)
+      (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
+
+
+
+
+
 (hunchentoot:define-easy-handler (create-task :uri "/create-task" :default-request-type :post) ()
   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
   (handler-case
@@ -664,22 +704,7 @@ textarea { width: 100%; font-family: monospace; }
               (let ((*print-readably* t))
                 (print json-data f))))
           ;; Если есть файл, сохраняем его простейшим способом
-          (when uploaded-file
-            (format t "~%>>> upload-file: ~S~%" uploaded-file)
-            (format t "    type: ~S~%" (type-of uploaded-file))
-            (cond
-              ((and (consp uploaded-file) (>= (length uploaded-file) 2))
-               (let ((temp-path (first uploaded-file))
-                     (orig-name (second uploaded-file)))
-                 (format t "    temp-path: ~S, orig-name: ~S~%" temp-path orig-name)
-                 (if (and (pathnamep temp-path) (stringp orig-name))
-                     (let ((dest-path (merge-pathnames (make-pathname :name orig-name) request-dir)))
-                       (format t "    dest-path: ~S~%" dest-path)
-                       (uiop:copy-file temp-path dest-path)
-                       (format t "<<< File copied~%"))
-                     (error "Invalid uploaded-file structure: temp-path or orig-name not of expected type"))))
-              (t
-               (error "Unexpected uploaded-file format: ~S" uploaded-file)))))
+                  )
         ;; Возвращаем успех
         (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
     (error (e)

@@ -372,28 +372,62 @@
             }
 
             // --- Отправка данных на сервер (заглушка) ---
-		function submitForm() {
-    		if (!formData.uuid) 	{alert('UUID ещё не получен, попробуйте через секунду');return;}
-    		const data = new FormData();
-    		data.append('uuid', formData.uuid);
-    		data.append('category', formData.category);
-    		data.append('title', formData.title);
-    		data.append('description', formData.description);
-    		data.append('user_id', formData.user_id);
-    		data.append('user_email', formData.user_email);
-    		data.append('user_phone', formData.user_phone);
-            data.append('priority', formData.priority);
+function submitForm() {
+    if (!formData.uuid) {
+        alert('UUID ещё не получен, попробуйте через секунду');
+        return;
+    }
 
-    		if (formData.file) data.append('file', formData.file);
-        	fetch('/create-task', {method: 'POST',    body: data})
-    				.then(response => response.json())
-    				.then(result => {
-        				if (result.status === 'ok') {
-            				state = 4; // переходим к экрану завершения
-            				createPanel();
-        				} else {alert('Ошибка: ' + result.message);}
-    				}).catch(err => {alert('Ошибка сети: ' + err);});
-		}
+    // Сначала отправляем текстовые данные (без файла)
+    const textData = new FormData();
+    textData.append('uuid', formData.uuid);
+    textData.append('category', formData.category);
+    textData.append('title', formData.title);
+    textData.append('description', formData.description);
+    textData.append('user_id', formData.user_id);
+    textData.append('user_email', formData.user_email);
+    textData.append('user_phone', formData.user_phone);
+    textData.append('priority', formData.priority);
+
+    fetch('/create-task', {
+        method: 'POST',
+        body: textData
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'ok') {
+            // Если есть файл, загружаем его отдельно
+            if (formData.file) {
+                const fileData = new FormData();
+                fileData.append('uuid', formData.uuid);
+                fileData.append('file', formData.file);
+
+                return fetch('/upload-file', {
+                    method: 'POST',
+                    body: fileData
+                })
+                .then(response => response.json())
+                .then(fileResult => {
+                    if (fileResult.status === 'ok') {
+                        state = 4;
+                        createPanel();
+                    } else {
+                        alert('Ошибка загрузки файла: ' + fileResult.message);
+                    }
+                });
+            } else {
+                // Файла нет – сразу переходим к завершению
+                state = 4;
+                createPanel();
+            }
+        } else {
+            alert('Ошибка: ' + result.message);
+        }
+    })
+    .catch(err => {
+        alert('Ошибка сети: ' + err);
+    });
+}
 
             // --- Запуск ---
             createPanel();
