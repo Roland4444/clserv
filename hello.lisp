@@ -635,9 +635,12 @@ textarea { width: 100%; font-family: monospace; }
              (uploaded-file (hunchentoot:post-parameter "file"))
              (base-dir (make-pathname :directory '(:relative "requests")))
              (request-dir (merge-pathnames (make-pathname :directory `(:relative ,uuid)) base-dir)))
+        ;; Проверка наличия UUID
         (unless (and uuid (string/= uuid ""))
           (error "Missing or empty uuid"))
+        ;; Создаём директорию запроса
         (ensure-directories-exist request-dir)
+        ;; Данные для сохранения
         (let ((json-data `((:uuid . ,uuid)
                            (:category . ,category)
                            (:title . ,title)
@@ -662,14 +665,31 @@ textarea { width: 100%; font-family: monospace; }
                 (print json-data f))))
           ;; Если есть файл, сохраняем его с отладкой
           (when uploaded-file
-            (let* ((temp-path (first uploaded-file))
-                   (orig-name (second uploaded-file))
-                   (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
-                                                              :type nil)
+            (format t "~%>>> RAW uploaded-file: ~S~%" uploaded-file)
+            (format t "    type: ~S~%" (type-of uploaded-file))
+            ;; Пытаемся извлечь временный путь и имя файла
+            (let* ((temp-path 
+                     (cond ((pathnamep uploaded-file)
+                            uploaded-file)
+                           ((and (consp uploaded-file) (pathnamep (first uploaded-file)))
+                            (first uploaded-file))
+                           (t (error "Cannot determine temp file path from ~S" uploaded-file))))
+                   (orig-name
+                     (cond ((and (consp uploaded-file) (stringp (second uploaded-file)))
+                            (second uploaded-file))
+                           ((and (consp uploaded-file) (pathnamep (second uploaded-file)))
+                            (file-namestring (second uploaded-file)))
+                           ((stringp uploaded-file)
+                            (file-namestring (pathname uploaded-file)))
+                           (t (format nil "file-~A.dat" (get-universal-time)))))
+                   (dest-path (merge-pathnames (make-pathname :name orig-name)
                                                request-dir)))
-              (format t "~%>>> Сохраняем файл: ~A -> ~A~%" temp-path dest-path)
+              (format t "    temp-path: ~A~%" temp-path)
+              (format t "    orig-name: ~A~%" orig-name)
+              (format t "    dest-path: ~A~%" dest-path)
               (uiop:copy-file temp-path dest-path)
-              (format t "<<< Файл сохранён~%"))))
+              (format t "<<< Файл скопирован успешно~%"))))
+        ;; Возвращаем успех
         (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
     (error (e)
       (setf (hunchentoot:return-code*) 400)
