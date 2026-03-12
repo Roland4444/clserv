@@ -368,34 +368,65 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|____|_|  ||   ||     || \ \    ||   // \\
 
 ;;; Функция для извлечения ID из ответа Bitrix после загрузки файла
+(defun extract-number-from-json-string (json-string key)
+  "Ищет в JSON-строке поле \"key\": и возвращает число после него.
+   Например, для ключа \"id\" ищет подстроку \"id\": и извлекает следующее число."
+  (let* ((key-str (format nil "\"~A\":" key))
+         (start (search key-str json-string)))
+    (unless start
+      (error "Поле ~S не найдено в JSON" key-str))
+    ;; позиция после двоеточия
+    (let ((pos (+ start (length key-str))))
+      ;; пропускаем пробелы
+      (loop while (and (< pos (length json-string))
+                       (member (aref json-string pos) '(#\Space #\Tab)))
+            do (incf pos))
+      ;; собираем цифры
+      (let ((num-start pos))
+        (loop while (and (< pos (length json-string))
+                         (digit-char-p (aref json-string pos)))
+              do (incf pos))
+        (if (= num-start pos)
+            (error "После поля ~S не найдено число" key-str)
+            (parse-integer (subseq json-string num-start pos)))))))
 
-(defun extract-id-from-bitrix-response (result)
-  "Извлекает ID из result, ища элемент с именем символа \"+ID+\"."
-  (let* ((keys (mapcar #'car result))
-         (id-assoc (find "+ID+" keys :test #'string= :key #'symbol-name)))
-    (format t "    result keys: ~S~%" keys)
-    (if id-assoc
-        (let ((id-value (cdr (assoc id-assoc result))))
-          (format t "    extracted file-id: ~A~%" id-value)
-          id-value)
-        (error "No ID field in result, available keys: ~S" keys))))        
+
+
+(defun parse-bitrix-task-id (response-body)
+  "Извлекает ID задачи из ответа Bitrix после создания.
+   Ищет поле \"id\": в строке."
+  (extract-number-from-json-string response-body "id"))
+
 
 ;;; Тесты для extract-id-from-bitrix-response
 (defun tests ()
-  (format t "Running tests for EXTRACT-ID-FROM-BITRIX-RESPONSE...~%")
-  ;; Тест 1: ключ как :+ID+ (реальный формат от cl-json)
-  (let ((resp1 '((:+ID+ . 123) (:+NAME+ . "file.txt"))))
-    (assert (= (extract-id-from-bitrix-response resp1) 123)))
-  ;; Тест 2: отсутствие поля ID
-  (let ((resp2 '((:+NAME+ . "file.txt"))))
+  (format t "Running tests for JSON number extraction...~%")
+  ;; Тест 1: извлечение ID из ответа загрузки файла (ключ "ID")
+  (let ((response "{\"result\":{\"ID\":126,\"NAME\":\"file.txt\"}}"))
+    (let ((id (extract-number-from-json-string response "ID")))
+      (assert (= id 126))
+      (format t "Test 1 passed: extracted ~A~%" id)))
+  ;; Тест 2: извлечение ID задачи из ответа создания (ключ "id")
+  (let ((response "{\"result\":{\"task\":{\"id\":84,\"title\":\"Test\"}}}"))
+    (let ((id (extract-number-from-json-string response "id")))
+      (assert (= id 84))
+      (format t "Test 2 passed: extracted ~A~%" id)))
+  ;; Тест 3: отсутствие ключа
+  (let ((response "{\"result\":{\"name\":\"file.txt\"}}"))
     (handler-case
         (progn
-          (extract-id-from-bitrix-response resp2)
-          (error "Test 2 failed: expected error"))
+          (extract-number-from-json-string response "ID")
+          (error "Test 3 failed: expected error"))
       (error (e)
-        (format t "Test 2 passed: caught expected error ~A~%" e))))
-  (format t "All tests passed for EXTRACT-ID-FROM-BITRIX-RESPONSE.~%")
+        (format t "Test 3 passed: caught expected error ~A~%" e))))
+  ;; Тест 4: ключ "id" не должен путаться с частью другого слова
+  (let ((response "{\"result\":{\"guid\":\"some-id-84\",\"id\":99}}"))
+    (let ((id (extract-number-from-json-string response "id")))
+      (assert (= id 99))
+      (format t "Test 4 passed: extracted ~A from string with substring~%" id)))
+  (format t "All tests passed.~%")
   t)
+  
 
 (defun parse-bitrix-task-id (response-body)
   (let ((json (cl-json:decode-json-from-string response-body)))
@@ -429,21 +460,16 @@ textarea { width: 100%; font-family: monospace; }
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
-  "Прикрепляет файл, печатая запрос и ответ."
+  "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID."
   (let ((payload `(("taskId" . ,task-id)
                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix)))))))
-    (format t "~%>>> ATTACH REQUEST to ~A~%" attach-url)
-    (format t ">>> payload: ~S~%" payload)
-    (let ((json-payload (cl-json:encode-json-to-string payload)))
-      (format t ">>> JSON: ~A~%" json-payload)
-      (multiple-value-bind (body status)
-          (dex:post attach-url
-                    :headers '(("Content-Type" . "application/json"))
-                    :content json-payload)
-        (format t "<<< ATTACH RESPONSE status: ~A, body: ~A~%" status body)
-        (if (= status 200)
-            body
-            (error "Failed to attach file, status ~A: ~A" status body))))))
+    (multiple-value-bind (body status)
+        (dex:post attach-url
+                  :headers '(("Content-Type" . "application/json"))
+                  :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          body
+          (error "Failed to attach file, status ~A: ~A" status body)))))
 
 (defun format-bitrix-deadline (universal-time)
   (multiple-value-bind (second minute hour day month year)
@@ -487,13 +513,14 @@ textarea { width: 100%; font-family: monospace; }
     (format t "~%=== SEND-TO-BITRIX START ===~%")
     (format t "base-url: ~A~%" base-url)
     (format t "category: ~A, title: ~A, priority: ~A, user-id: ~A~%" category title priority user-id-str)
+    (unless base-url
+      (error "Bitrix URL не настроен в конфигурации"))
 
-    ;; 1. Ищем приложенный файл
+    ;; Ищем файл в папке заявки
     (let* ((file-path (find-uploaded-file request-dir))
            (file-id (when file-path
                       (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
                         (upload-file-to-bitrix-task-helper upload-url file-path))))
-           ;; 2. Подготовка данных для задачи
            (user-id (and user-id-str
                          (not (equal user-id-str ""))
                          (not (equal user-id-str "undefined"))
@@ -522,7 +549,7 @@ textarea { width: 100%; font-family: monospace; }
       (format t "payload: ~S~%" payload)
       (format t "JSON: ~A~%" json-payload)
 
-      ;; 3. Создаём задачу
+      ;; Создаём задачу
       (multiple-value-bind (create-body create-status)
           (dex:post create-url
                     :headers '(("Content-Type" . "application/json"))
@@ -532,7 +559,7 @@ textarea { width: 100%; font-family: monospace; }
             (error "Bitrix task creation failed: ~A" create-body)
             (let ((task-id (parse-bitrix-task-id create-body)))
               (format t "task-id: ~A~%" task-id)
-              ;; 4. Прикрепляем файл, если был загружен
+              ;; Прикрепляем файл, если он был загружен
               (when file-id
                 (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
                   (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id))
