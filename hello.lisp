@@ -297,8 +297,12 @@
 ;         (dex:http-request-failed (e)
 ;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
 ;           (error e))))))    
-
 (defun send-to-bitrix (data request-dir)
+  (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
+  (return-from send-to-bitrix "test"))
+
+  
+(defun send-to-bitrix222222 (data request-dir)
   (format t "~%DEBUG: send-to-bitrix called with data: ~S, dir: ~S~%" data request-dir)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
