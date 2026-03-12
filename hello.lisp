@@ -309,23 +309,27 @@
 
 (defun upload-file-to-bitrix-task (task-id file-path)
   "Загружает файл FILE-PATH в папку задачи TASK-ID на Диске Bitrix.
-   Возвращает ID загруженного файла."
+   Возвращает ID объекта диска (result.ID)."
   (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
                            "/disk.folder.uploadfile"))
-         (boundary "----WebKitFormBoundary7MA4YWxkTrZu0gW")
-         (file-content (alexandria:read-file-into-byte-vector file-path))
-         (content-type (hunchentoot:mime-type file-path)))
+         (file-name (file-namestring file-path))
+         ;; Читаем файл и кодируем в base64
+         (file-content 
+           (with-open-file (stream file-path :element-type '(unsigned-byte 8))
+             (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
+               (read-sequence bytes stream)
+               (cl-base64:usb8-array-to-base64-string bytes))))
+         ;; Формируем payload строго по документации
+         (payload `(("id" . ,task-id)
+                    ("data" . (("NAME" . ,file-name)))
+                    ("fileContent" . [,file-name ,file-content]))))
     (multiple-value-bind (body status)
         (dex:post url
-                  :headers `(("Content-Type" . ,(format nil "multipart/form-data; boundary=~A" boundary)))
-                  :content `(("id" . ,(write-to-string task-id))
-                             ("fileContents" . (,file-content
-                                                :filename ,(file-namestring file-path)
-                                                :content-type ,content-type)))
-                  :boundary boundary)
+                  :headers '(("Content-Type" . "application/json"))
+                  :content (cl-json:encode-json-to-string payload))
       (if (= status 200)
           (let ((json (cl-json:decode-json-from-string body)))
-            (cdr (assoc :ID (cdr (assoc :result json)))))
+            (cdr (assoc :ID (cdr (assoc :result json)))))  ; возвращаем ID объекта диска
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (task-id file-id)
