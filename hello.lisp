@@ -299,44 +299,71 @@
 ;           (error e))))))    
 
 
-(defun send-to-bitrix (data)
+(defun send-to-bitrix (data request-dir)
   (let ((url (gethash :bitrix-url *config*))
         (responsible-alist (gethash :bitrix-responsible *config*))
         (auditors-val (gethash :bitrix-auditors *config*))
         (category (cdr (assoc :category data)))
         (title (or (cdr (assoc :title data)) "Без темы"))
-        (description (or (cdr (assoc :description data)) "")))
+        (description (or (cdr (assoc :description data)) ""))
+        (priority (cdr (assoc :priority data)))
+        (user-id-str (cdr (assoc :user_id data))))
     (unless url
       (error "Bitrix URL не настроен в конфигурации"))
-    ;; Преобразуем auditors-val в список, если необходимо
-    (flet ((ensure-list (x)
-             (if (listp x) x (list x))))
-      (let* ((responsible-id
-               (if responsible-alist
-                   (or (cdr (assoc category responsible-alist :test #'string=)) 1)
-                   1))
-             (auditors-list (ensure-list auditors-val))
-             (payload `(("fields" .
-                         (("TITLE" . ,title)
-                          ("DESCRIPTION" . ,description)
-                          ("RESPONSIBLE_ID" . ,responsible-id)
-                          ("CREATED_BY" . 1)
-                          ("AUDITORS" . ,auditors-list)
-                          ("DEADLINE" . "2025-03-10T18:00:00+03:00")
-                          ("PRIORITY" . 2)
-                          ("GROUP_ID" . 10)))))
-            (json-payload (cl-json:encode-json-to-string payload)))
-        (handler-case
-            (multiple-value-bind (body status)
-                (dex:post url
-                          :headers '(("Content-Type" . "application/json"))
-                          :content json-payload)
-              (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
-              (when (>= status 400)
-                (error "Bitrix request failed with status ~A" status)))
-          (dex:http-request-failed (e)
-            (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
-            (error e)))))))
+    ;; Проверяем наличие файла в папке запроса (кроме data.json и data.lisp)
+    (let ((file-attachment
+            (when (probe-file request-dir)
+              (let ((files (directory (merge-pathnames "*" request-dir))))
+                (find-if (lambda (f)
+                           (let ((name (file-namestring f)))
+                             (and (not (equal name "data.json"))
+                                  (not (equal name "data.lisp"))))
+                         files)))))
+      ;; Если файл есть, добавляем информацию в описание
+      (when file-attachment
+        (setf description
+              (concatenate 'string description
+                           (format nil "~%~%Приложен файл: ~A"
+                                   (file-namestring file-attachment)))))
+      ;; Преобразуем auditors-val в список и добавляем user_id, если он валидный
+      (flet ((ensure-list (x)
+               (if (listp x) x (list x))))
+        (let* ((base-auditors (ensure-list auditors-val))
+               (user-id (and user-id-str
+                             (not (equal user-id-str ""))
+                             (not (equal user-id-str "undefined"))
+                             (parse-integer user-id-str :junk-allowed t)))
+               (auditors-list
+                 (if user-id
+                     (adjoin user-id base-auditors)
+                     base-auditors))
+               (responsible-id
+                 (if responsible-alist
+                     (or (cdr (assoc category responsible-alist :test #'string=)) 1)
+                     1))
+               (deadline (compute-deadline priority))
+               (bitrix-priority (compute-bitrix-priority priority))
+               (payload `(("fields" .
+                           (("TITLE" . ,title)
+                            ("DESCRIPTION" . ,description)
+                            ("RESPONSIBLE_ID" . ,responsible-id)
+                            ("CREATED_BY" . 1)
+                            ("AUDITORS" . ,auditors-list)
+                            ("DEADLINE" . ,deadline)
+                            ("PRIORITY" . ,bitrix-priority)
+                            ("GROUP_ID" . 10)))))
+              (json-payload (cl-json:encode-json-to-string payload)))
+          (handler-case
+              (multiple-value-bind (body status)
+                  (dex:post url
+                            :headers '(("Content-Type" . "application/json"))
+                            :content json-payload)
+                (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
+                (when (>= status 400)
+                  (error "Bitrix request failed with status ~A" status)))
+            (dex:http-request-failed (e)
+              (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
+              (error e)))))))))
 
 
 (defun send-to-glpi (data)
