@@ -372,7 +372,7 @@ textarea { width: 100%; font-family: monospace; }
     (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
 
 (defun upload-file-to-bitrix-task-helper (upload-url file-path)
-  "Загружает файл, печатая запрос и ответ. Возвращает ID диска."
+  "Загружает файл, возвращает ID объекта диска или сигнализирует ошибку."
   (let* ((file-name (file-namestring file-path))
          (file-content 
            (with-open-file (stream file-path :element-type '(unsigned-byte 8))
@@ -381,20 +381,27 @@ textarea { width: 100%; font-family: monospace; }
                (cl-base64:usb8-array-to-base64-string bytes))))
          (payload `(("id" . 1)
                     ("data" . (("NAME" . ,file-name)))
-                    ("fileContent" . (,file-name ,file-content)))))
+                    ("fileContent" . (,file-name ,file-content))))
+         (json-payload (cl-json:encode-json-to-string payload)))
     (format t "~%>>> UPLOAD REQUEST to ~A~%" upload-url)
     (format t ">>> payload: ~S~%" payload)
-    (let ((json-payload (cl-json:encode-json-to-string payload)))
-      (format t ">>> JSON: ~A~%" json-payload)
-      (multiple-value-bind (body status)
-          (dex:post upload-url
-                    :headers '(("Content-Type" . "application/json"))
-                    :content json-payload)
-        (format t "<<< UPLOAD RESPONSE status: ~A, body: ~A~%" status body)
-        (if (= status 200)
-            (let ((json (cl-json:decode-json-from-string body)))
-              (cdr (assoc :ID (cdr (assoc :result json)))))
-            (error "Failed to upload file, status ~A: ~A" status body))))))
+    (format t ">>> JSON: ~A~%" json-payload)
+    (multiple-value-bind (body status)
+        (dex:post upload-url
+                  :headers '(("Content-Type" . "application/json"))
+                  :content json-payload)
+      (format t "<<< UPLOAD RESPONSE status: ~A, body: ~A~%" status body)
+      (if (= status 200)
+          (let* ((json (cl-json:decode-json-from-string body))
+                 (result (cdr (assoc :result json))))
+            (unless result
+              (error "No :result in upload response"))
+            (let ((file-id (cdr (assoc :ID result))))
+              (unless file-id
+                (error "No :ID in result"))
+              (format t "    extracted file-id: ~A~%" file-id)
+              file-id))
+          (error "Failed to upload file, status ~A: ~A" status body)))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
   "Прикрепляет файл, печатая запрос и ответ."
