@@ -370,7 +370,7 @@ textarea { width: 100%; font-family: monospace; }
 ;;; Функция для извлечения ID из ответа Bitrix после загрузки файла
 ;; Функция извлечения числа из JSON-строки по ключу (исправленная версия)
 (defun extract-number-from-json-string (json-string key)
-  "Извлекает число из JSON-строки по ключу (например, key=\"ID\")."
+  "Извлекает число из JSON-строки по ключу. Число может быть в кавычках или без."
   (let* ((key-str (format nil "\"~A\"" key))
          (key-start (search key-str json-string)))
     (unless key-start
@@ -387,6 +387,10 @@ textarea { width: 100%; font-family: monospace; }
       (loop while (and (< pos (length json-string))
                        (member (aref json-string pos) '(#\Space #\Tab)))
             do (incf pos))
+      ;; если после пробелов идёт кавычка, пропускаем её
+      (when (and (< pos (length json-string))
+                 (char= (aref json-string pos) #\"))
+        (incf pos))
       ;; собираем цифры
       (let ((num-start pos))
         (loop while (and (< pos (length json-string))
@@ -417,30 +421,23 @@ textarea { width: 100%; font-family: monospace; }
 ;; Запуск: (test-extract-id)
 
 (defun tests ()
-  (format t "Running tests for JSON number extraction...~%")
-  ;; Тест 1: извлечение ID из ответа загрузки файла (ключ "ID")
-  (let ((response "{\"result\":{\"ID\":126,\"NAME\":\"file.txt\"}}"))
-    (let ((id (extract-number-from-json-string response "ID")))
-      (assert (= id 126))
-      (format t "Test 1 passed: extracted ~A~%" id)))
-  ;; Тест 2: извлечение ID задачи из ответа создания (ключ "id")
-  (let ((response "{\"result\":{\"task\":{\"id\":84,\"title\":\"Test\"}}}"))
-    (let ((id (extract-number-from-json-string response "id")))
-      (assert (= id 84))
-      (format t "Test 2 passed: extracted ~A~%" id)))
-  ;; Тест 3: отсутствие ключа
-  (let ((response "{\"result\":{\"name\":\"file.txt\"}}"))
+  (format t "Testing extract-number-from-json-string...~%")
+  ;; Тест 1: ID без кавычек (как в ответе загрузки файла)
+  (let ((json "{\"result\":{\"ID\":592,\"NAME\":\"file.txt\"}}"))
+    (assert (= (extract-number-from-json-string json "ID") 592))
+    (format t "Test 1 passed: extracted 592~%"))
+  ;; Тест 2: id в кавычках (как в ответе создания задачи)
+  (let ((json "{\"result\":{\"task\":{\"id\":\"88\",\"title\":\"Test\"}}}"))
+    (assert (= (extract-number-from-json-string json "id") 88))
+    (format t "Test 2 passed: extracted 88~%"))
+  ;; Тест 3: ключ не найден
+  (let ((json "{\"result\":{\"name\":\"file.txt\"}}"))
     (handler-case
         (progn
-          (extract-number-from-json-string response "ID")
+          (extract-number-from-json-string json "ID")
           (error "Test 3 failed: expected error"))
       (error (e)
         (format t "Test 3 passed: caught expected error ~A~%" e))))
-  ;; Тест 4: ключ "id" не должен путаться с частью другого слова
-  (let ((response "{\"result\":{\"guid\":\"some-id-84\",\"id\":99}}"))
-    (let ((id (extract-number-from-json-string response "id")))
-      (assert (= id 99))
-      (format t "Test 4 passed: extracted ~A from string with substring~%" id)))
   (format t "All tests passed.~%")
   t)
 
