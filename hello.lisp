@@ -368,12 +368,11 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|____|_|  ||   ||     || \ \    ||   // \\
 
 (defun parse-bitrix-task-id (response-body)
-  "Извлекает ID задачи из ответа Bitrix после создания."
   (let ((json (cl-json:decode-json-from-string response-body)))
     (cdr (assoc :id (cdr (assoc :task (cdr (assoc :result json))))))))
 
 (defun upload-file-to-bitrix-task-helper (upload-url file-path)
-  "Загружает файл по заданному URL (должен быть полный метод disk.folder.uploadfile) и возвращает ID объекта диска."
+  "Загружает файл, печатая запрос и ответ. Возвращает ID диска."
   (let* ((file-name (file-namestring file-path))
          (file-content 
            (with-open-file (stream file-path :element-type '(unsigned-byte 8))
@@ -383,37 +382,44 @@ textarea { width: 100%; font-family: monospace; }
          (payload `(("id" . 1)
                     ("data" . (("NAME" . ,file-name)))
                     ("fileContent" . (,file-name ,file-content)))))
-    (multiple-value-bind (body status)
-        (dex:post upload-url
-                  :headers '(("Content-Type" . "application/json"))
-                  :content (cl-json:encode-json-to-string payload))
-      (if (= status 200)
-          (let ((json (cl-json:decode-json-from-string body)))
-            (cdr (assoc :ID (cdr (assoc :result json))))) ; возвращаем ID объекта диска
-          (error "Failed to upload file, status ~A: ~A" status body)))))
+    (format t "~%>>> UPLOAD REQUEST to ~A~%" upload-url)
+    (format t ">>> payload: ~S~%" payload)
+    (let ((json-payload (cl-json:encode-json-to-string payload)))
+      (format t ">>> JSON: ~A~%" json-payload)
+      (multiple-value-bind (body status)
+          (dex:post upload-url
+                    :headers '(("Content-Type" . "application/json"))
+                    :content json-payload)
+        (format t "<<< UPLOAD RESPONSE status: ~A, body: ~A~%" status body)
+        (if (= status 200)
+            (let ((json (cl-json:decode-json-from-string body)))
+              (cdr (assoc :ID (cdr (assoc :result json)))))
+            (error "Failed to upload file, status ~A: ~A" status body))))))
 
 (defun attach-file-to-bitrix-task (attach-url task-id file-id-with-prefix)
-  "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID."
+  "Прикрепляет файл, печатая запрос и ответ."
   (let ((payload `(("taskId" . ,task-id)
                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix)))))))
-    (multiple-value-bind (body status)
-        (dex:post attach-url
-                  :headers '(("Content-Type" . "application/json"))
-                  :content (cl-json:encode-json-to-string payload))
-      (if (= status 200)
-          body
-          (error "Failed to attach file, status ~A: ~A" status body)))))
+    (format t "~%>>> ATTACH REQUEST to ~A~%" attach-url)
+    (format t ">>> payload: ~S~%" payload)
+    (let ((json-payload (cl-json:encode-json-to-string payload)))
+      (format t ">>> JSON: ~A~%" json-payload)
+      (multiple-value-bind (body status)
+          (dex:post attach-url
+                    :headers '(("Content-Type" . "application/json"))
+                    :content json-payload)
+        (format t "<<< ATTACH RESPONSE status: ~A, body: ~A~%" status body)
+        (if (= status 200)
+            body
+            (error "Failed to attach file, status ~A: ~A" status body))))))
 
 (defun format-bitrix-deadline (universal-time)
-  "Преобразует универсальное время в строку формата YYYY-MM-DDTHH:MM:SS+03:00 (московское время)."
   (multiple-value-bind (second minute hour day month year)
-      (decode-universal-time universal-time 3) ; 3 = UTC+3
+      (decode-universal-time universal-time 3)
     (format nil "~4,'0d-~2,'0d-~2,'0dT~2,'0d:~2,'0d:~2,'0d+03:00"
             year month day hour minute second)))
 
 (defun compute-deadline (priority)
-  "Вычисляет дедлайн в зависимости от приоритета заявки.
-   Для very_high и high: +6 часов, для остальных: +1 день."
   (let ((now (get-universal-time)))
     (cond ((member priority '("very_high" "high") :test #'string=)
            (format-bitrix-deadline (+ now (* 6 3600))))
@@ -421,10 +427,11 @@ textarea { width: 100%; font-family: monospace; }
            (format-bitrix-deadline (+ now (* 24 3600)))))))
 
 (defun compute-bitrix-priority (priority)
-  "Определяет приоритет задачи в Bitrix (2 - высокий, 1 - средний)."
   (if (member priority '("very_high" "high") :test #'string=)
       2
       1))
+
+
 
 (defun send-to-bitrix (data request-dir)
   (let ((base-url (gethash :bitrix-url *config*))
@@ -435,9 +442,13 @@ textarea { width: 100%; font-family: monospace; }
         (description (or (cdr (assoc :description data)) ""))
         (priority (cdr (assoc :priority data)))
         (user-id-str (cdr (assoc :user_id data))))
+    (format t "~%=== SEND-TO-BITRIX START ===~%")
+    (format t "base-url: ~A~%" base-url)
+    (format t "category: ~A, title: ~A, priority: ~A, user-id: ~A~%" category title priority user-id-str)
     (unless base-url
       (error "Bitrix URL не настроен в конфигурации"))
-    ;; Проверяем наличие файла в папке запроса (кроме data.json и data.lisp)
+
+    ;; Проверяем наличие файла в папке запроса
     (let ((file-attachment
             (when (probe-file request-dir)
               (let ((files (directory (merge-pathnames "*" request-dir))))
@@ -446,24 +457,23 @@ textarea { width: 100%; font-family: monospace; }
                              (and (not (equal name "data.json"))
                                   (not (equal name "data.lisp")))))
                          files)))))
-      ;; **Шаг 1: если есть файл, загружаем его ДО создания задачи**
+      (format t "file-attachment: ~A~%" file-attachment)
+
+      ;; ШАГ 1: загружаем файл (если есть)
       (let ((file-id nil))
         (when file-attachment
           (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
             (setf file-id (upload-file-to-bitrix-task-helper upload-url file-attachment))
-            (format t "~%Файл загружен на диск, ID: ~A~%" file-id)))
-        ;; **Шаг 2: создаём задачу**
-        (flet ((ensure-list (x)
-                 (if (listp x) x (list x))))
+            (format t "file-id after upload: ~A~%" file-id)))
+
+        ;; ШАГ 2: создаём задачу (всегда)
+        (flet ((ensure-list (x) (if (listp x) x (list x))))
           (let* ((base-auditors (ensure-list auditors-val))
                  (user-id (and user-id-str
                                (not (equal user-id-str ""))
                                (not (equal user-id-str "undefined"))
                                (parse-integer user-id-str :junk-allowed t)))
-                 (auditors-list
-                   (if user-id
-                       (adjoin user-id base-auditors)
-                       base-auditors))
+                 (auditors-list (if user-id (adjoin user-id base-auditors) base-auditors))
                  (responsible-id
                    (if responsible-alist
                        (or (cdr (assoc category responsible-alist :test #'string=)) 1)
@@ -480,20 +490,27 @@ textarea { width: 100%; font-family: monospace; }
                               ("PRIORITY" . ,bitrix-priority)
                               ("GROUP_ID" . 10)))))
                 (json-payload (cl-json:encode-json-to-string payload)))
+            (format t "~%>>> CREATE TASK REQUEST~%")
+            (format t "payload: ~S~%" payload)
+            (format t "JSON: ~A~%" json-payload)
             (let ((create-url (concatenate 'string base-url "tasks.task.add")))
               (multiple-value-bind (create-body create-status)
                   (dex:post create-url
                             :headers '(("Content-Type" . "application/json"))
                             :content json-payload)
+                (format t "<<< CREATE TASK RESPONSE status: ~A, body: ~A~%" create-status create-body)
                 (if (>= create-status 400)
                     (error "Bitrix task creation failed: ~A" create-body)
                     (let ((task-id (parse-bitrix-task-id create-body)))
-                      (format t "~%Bitrix задача создана, ID: ~A~%" task-id)
-                      ;; **Шаг 3: если был файл, прикрепляем его**
+                      (format t "task-id: ~A~%" task-id)
+
+                      ;; ШАГ 3: прикрепляем файл (если есть)
                       (when file-id
                         (let ((attach-url (concatenate 'string base-url "tasks.task.update")))
                           (attach-file-to-bitrix-task attach-url task-id (format nil "n~A" file-id))
-                          (format t "~%Файл прикреплён к задаче ~A~%" task-id)))
+                          (format t "Файл прикреплён к задаче ~A~%" task-id)))
+
+                      (format t "=== SEND-TO-BITRIX END ===~%")
                       task-id))))))))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -543,8 +560,7 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;PROCESS  REQUESTS;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun process-requestzzzzz (request-dir)
-  "Обрабатывает одну заявку в папке REQUEST-DIR."
-    (unless (typep request-dir 'pathname)
+  (unless (typep request-dir 'pathname)
     (format t "~%process-request получил не pathname: ~S~%" request-dir)
     (return-from process-requestzzzzz))
   (let ((lisp-file (merge-pathnames "data.lisp" request-dir)))
@@ -558,17 +574,18 @@ textarea { width: 100%; font-family: monospace; }
                       (read f)))))
             (format t "~%Обработка заявки из ~A:~%" request-dir)
             (format t "  Данные: ~S~%" data)
-            ;; Отправка в Bitrix, если включено в конфиге
+            ;; Отправка в Bitrix, если включено
             (when (gethash :bitrix-enabled *config*)
               (send-to-bitrix data request-dir))
             ;; Отправка в GLPI, если включено
             (when (gethash :glpi-enabled *config*)
               (send-to-glpi data))
-            ;; Удаляем папку после обработки (даже если отправка не производилась)
+            ;; Если дошли до сюда без ошибок — удаляем папку
             (uiop:delete-directory-tree request-dir :validate t)
             (format t "  Папка ~A удалена.~%" request-dir))
         (error (e)
-          (format t "~%Ошибка при обработке ~A: ~A~%" request-dir e))))))
+          (format t "~%Ошибка при обработке ~A: ~A~%" request-dir e)
+          (format t "Папка НЕ удалена (остаётся для повторной обработки).~%"))))))
 
 (defun scan-requests ()
   (let ((base-dir (make-pathname :directory '(:relative "requests"))))
@@ -618,12 +635,9 @@ textarea { width: 100%; font-family: monospace; }
              (uploaded-file (hunchentoot:post-parameter "file"))
              (base-dir (make-pathname :directory '(:relative "requests")))
              (request-dir (merge-pathnames (make-pathname :directory `(:relative ,uuid)) base-dir)))
-        ;; Проверка наличия UUID
         (unless (and uuid (string/= uuid ""))
           (error "Missing or empty uuid"))
-        ;; Создаём директорию запроса
         (ensure-directories-exist request-dir)
-        ;; Данные для сохранения
         (let ((json-data `((:uuid . ,uuid)
                            (:category . ,category)
                            (:title . ,title)
@@ -646,15 +660,16 @@ textarea { width: 100%; font-family: monospace; }
             (with-standard-io-syntax
               (let ((*print-readably* t))
                 (print json-data f))))
-          ;; Если есть файл, сохраняем его
+          ;; Если есть файл, сохраняем его с отладкой
           (when uploaded-file
             (let* ((temp-path (first uploaded-file))
                    (orig-name (second uploaded-file))
                    (dest-path (merge-pathnames (make-pathname :name (or orig-name "uploaded-file")
                                                               :type nil)
                                                request-dir)))
-              (uiop:copy-file temp-path dest-path))))
-        ;; Возвращаем успех
+              (format t "~%>>> Сохраняем файл: ~A -> ~A~%" temp-path dest-path)
+              (uiop:copy-file temp-path dest-path)
+              (format t "<<< Файл сохранён~%"))))
         (cl-json:encode-json-to-string `((:status . "ok") (:message . "Request saved"))))
     (error (e)
       (setf (hunchentoot:return-code*) 400)
