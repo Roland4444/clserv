@@ -332,17 +332,16 @@
             (cdr (assoc :ID (cdr (assoc :result json)))))  ; возвращаем ID объекта диска
           (error "Failed to upload file, status ~A: ~A" status body)))))
 
-(defun attach-file-to-bitrix-task (task-id file-id)
-  "Прикрепляет файл с FILE-ID к задаче TASK-ID."
+(defun attach-file-to-bitrix-task (task-id file-id-with-prefix)
+  "Прикрепляет файл с FILE-ID-WITH-PREFIX (уже с префиксом 'n') к задаче TASK-ID."
   (let* ((url (concatenate 'string (gethash :bitrix-url *config*)
                            "/tasks.task.update"))
          (payload `(("taskId" . ,task-id)
-                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id))))))
-         (json-payload (cl-json:encode-json-to-string payload)))
+                    ("fields" . (("UF_TASK_WEBDAV_FILES" . (,file-id-with-prefix)))))))
     (multiple-value-bind (body status)
         (dex:post url
                   :headers '(("Content-Type" . "application/json"))
-                  :content json-payload)
+                  :content (cl-json:encode-json-to-string payload))
       (if (= status 200)
           body
           (error "Failed to attach file, status ~A: ~A" status body)))))
