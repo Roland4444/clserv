@@ -476,6 +476,7 @@ textarea { width: 100%; font-family: monospace; }
         (dex:post attach-url
                   :headers '(("Content-Type" . "application/json"))
                   :content (cl-json:encode-json-to-string payload))
+      (format t "~%>>> ATTACH RESPONSE status: ~A, body: ~A~%" status body)
       (if (= status 200)
           body
           (error "Failed to attach file, status ~A: ~A" status body)))))
