@@ -109,7 +109,7 @@
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
             const geometry = new THREE.BoxGeometry(2, 2, 2);
             const cube = new THREE.Mesh(geometry, material);
-            scene.add(cube);
+        //    scene.add(cube);
 
             // --- Состояние приложения ---
             let state = 0; // 0: выбор категории, 1: тема, 2: описание, 3: файл, 4: завершение, 5: подтверждение категории
