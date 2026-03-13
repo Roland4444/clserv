@@ -187,10 +187,11 @@
                     </div>
                 `;
                 break;
-            case 6:
+            case 6:           //            <select id="prioritySelect" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #311b92; color: white; border: 1px solid #795548; border-radius: 8px;">
+
                 div.innerHTML = `
-                    <h2>Укажите срочность</h2>
-                    <select id="prioritySelect" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #311b92; color: white; border: 1px solid #795548; border-radius: 8px;">
+                    <h2>Укажите срочность2</h2>
+                    <select id="prioritySelect">
                         <option value="very_high" ${formData.priority === 'very_high' ? 'selected' : ''}>Очень высокая</option>
                         <option value="high" ${formData.priority === 'high' ? 'selected' : ''}>Высокая</option>
                         <option value="medium" ${formData.priority === 'medium' ? 'selected' : ''}>Средняя</option>
