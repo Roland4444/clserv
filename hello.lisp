@@ -14,7 +14,7 @@
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
-  #:test-compute-deadline))
+  #:test-compute-deadline #:testExtractToken))
 (in-package :hello)
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -724,6 +724,50 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+(defun extract-string-from-json-string (json-string key)
+  "Извлекает строковое значение из JSON-строки по ключу (например, key=\"session_token\")."
+  (let* ((key-str (format nil "\"~A\":" key))
+         (start (search key-str json-string)))
+    (unless start
+      (error "Поле ~S не найдено в JSON" key-str))
+    ;; позиция после ключа и двоеточия
+    (let ((pos (+ start (length key-str))))
+      ;; пропускаем пробелы
+      (loop while (and (< pos (length json-string))
+                       (member (aref json-string pos) '(#\Space #\Tab)))
+            do (incf pos))
+      ;; если начинается с кавычки, пропускаем её
+      (when (and (< pos (length json-string))
+                 (char= (aref json-string pos) #\"))
+        (incf pos))
+      (let ((start-pos pos))
+        ;; собираем символы до следующей кавычки
+        (loop while (and (< pos (length json-string))
+                         (char/= (aref json-string pos) #\"))
+              do (incf pos))
+        (if (= start-pos pos)
+            (error "После поля ~S не найдена строка" key-str)
+            (subseq json-string start-pos pos))))))
+
+;; Обновлённая функция get-glpi-session-token (без cl-json для парсинга)
+
+
+;; Тест для extract-string-from-json-string
+(defun testExtractToken ()
+  (format t "Testing extract-string-from-json-string...~%")
+  (let ((json "{\"session_token\":\"abc123\"}"))
+    (assert (string= (extract-string-from-json-string json "session_token") "abc123")))
+  (let ((json "{\"session_token\": \"abc123\"}"))
+    (assert (string= (extract-string-from-json-string json "session_token") "abc123")))
+  (let ((json "{\"other\":\"value\"}"))
+    (handler-case
+        (extract-string-from-json-string json "session_token")
+      (error (e)
+        (format t "Test passed: caught expected error ~A~%" e))))
+  (format t "All tests passed for extract-string-from-json-string.~%")
+  t)
+
+
 
 (defun send-to-glpi (data)
   (let ((base (gethash :glpi-base *config*))
@@ -838,13 +882,17 @@ textarea { width: 100%; font-family: monospace; }
 ;; Вспомогательная функция для получения сессии GLPI (теперь принимает параметры)
 (defun get-glpi-session-token (base app-token user-token)
   (let ((url (concatenate 'string base "/initSession")))
+    (format t "~%>>> GET GLPI SESSION TOKEN from ~A~%" url)
     (handler-case
         (multiple-value-bind (body status)
             (dex:get url
                      :headers `(("App-Token" . ,app-token)
                                 ("Authorization" . ,(format nil "user_token ~A" user-token))))
+          (format t "<<< GLPI initSession response status: ~A, body: ~A~%" status body)
           (if (= status 200)
-              (cdr (assoc :session_token (cl-json:decode-json-from-string body)))
+              (let ((token (extract-string-from-json-string body "session_token")))
+                (format t "    extracted session token: ~A~%" token)
+                token)
               (error "GLPI initSession failed, status ~A: ~A" status body)))
       (dex:http-request-failed (e)
         (format t "~%Ошибка HTTP при получении токена GLPI: ~A~%" e)
