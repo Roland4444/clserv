@@ -343,13 +343,31 @@
                     //     state = 1; // переход к вводу темы
                     //     createPanel();
                     // });
+
+
+                    //////////////////////////////////////////////////
+                        // const select = div.querySelector('#prioritySelect');
+                        // if (select) {
+                        //     select.value = formData.priority;
+                        //     select.addEventListener('change', (e) => {
+                        //     formData.priority = e.target.value;
+                        // });
+                        // }
+                        ////////////////////////////////////////////////////////
                         const select = div.querySelector('#prioritySelect');
-                        if (select) {
-                            select.value = formData.priority;
-                            select.addEventListener('change', (e) => {
-                            formData.priority = e.target.value;
-                        });
-                        }
+if (select) {
+    select.value = formData.priority;
+    try {
+        select.addEventListener('change', (e) => {
+            formData.priority = e.target.value;
+        });
+    } catch (err) {
+        console.error('Ошибка при добавлении обработчика select:', err);
+    }
+} else {
+    console.warn('Элемент #prioritySelect не найден');
+}
+
                         document.getElementById('backBtn')?.addEventListener('click', () => {
                         state = 5; // возврат к подтверждению категории
                         createPanel();

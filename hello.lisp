@@ -1155,7 +1155,7 @@ textarea { width: 100%; font-family: monospace; }
   (loop (sleep 3600)))
 ;;; Запуск теста
 ;;; (test-plus)
-  ;;sbcl --load hello.lisp      --eval '(sb-ext:save-lisp-and-die "hello-server" :toplevel #'\''hello::main :executable t)'
+  ;;   sbcl --load hello.lisp      --eval '(sb-ext:save-lisp-and-die "hello-server" :toplevel #'\''hello::main :executable t)'
 
 ;;  sbcl --load hello.lisp      --eval '(hello:main)'
 
