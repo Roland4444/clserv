@@ -27,75 +27,179 @@
 
     fetchUUID(function(uuid) { console.log('UUID получен:', uuid); });
 
-    // Определяем мобильное устройство или приложение Bitrix24
-    const ua = navigator.userAgent.toLowerCase();
-    const isMobile = /iphone|ipad|ipod|android|wv|bitrix24/i.test(ua);
-    const isBitrixApp = typeof BX24 !== 'undefined';
-    const useThree = false; ///!isMobile && !isBitrixApp; // Отключаем Three.js на мобильных и в приложении
+    // ---------- ФИКС ДЛЯ ANDROID WEBVIEW (SELECT CRASH) ----------
+    function fixAndroidSelects() {
+        const ua = navigator.userAgent.toLowerCase();
+        const isAndroidWebView = /android.*wv|android.*; wv/.test(ua) || typeof BX24 !== 'undefined';
+        if (!isAndroidWebView) return;
 
-    // Переменные для Three.js (только если useThree === true)
-    let scene, camera, renderer, labelRenderer, cube, animate;
-    let htmlContainer = null;
+        console.log('Android WebView detected: applying select fix');
 
-    if (!useThree) {
-        // Создаём простой контейнер для обычного HTML
-        htmlContainer = document.createElement('div');
-        htmlContainer.id = 'html-container';
-        htmlContainer.style.position = 'absolute';
-        htmlContainer.style.top = '0';
-        htmlContainer.style.left = '0';
-        htmlContainer.style.width = '100%';
-        htmlContainer.style.height = '100%';
-        htmlContainer.style.display = 'flex';
-        htmlContainer.style.justifyContent = 'center';
-        htmlContainer.style.alignItems = 'center';
-        htmlContainer.style.pointerEvents = 'none';
-        document.body.appendChild(htmlContainer);
-    } else {
-        // Проверяем загрузку CSS2DRenderer
-        if (typeof THREE.CSS2DRenderer === 'undefined') {
-            console.error('CSS2DRenderer не загрузился. Проверьте подключение скриптов.');
-            document.body.innerHTML += '<div style="color:red;position:absolute;top:50px;">Ошибка: CSS2DRenderer не загружен</div>';
-            return;
+        function replaceSelect(select) {
+            if (select.dataset.replaced) return;
+
+            const id = select.id || '';
+            const className = select.className || '';
+            const style = select.style.cssText || '';
+            const name = select.name || '';
+            const selectedIndex = select.selectedIndex;
+            const options = Array.from(select.options).map(opt => ({
+                value: opt.value,
+                text: opt.text,
+                selected: opt.selected
+            }));
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'custom-select-wrapper';
+            wrapper.style.position = 'relative';
+            wrapper.style.display = 'inline-block';
+            wrapper.style.width = '100%';
+
+            const button = document.createElement('div');
+            button.className = 'custom-select-button';
+            button.setAttribute('data-id', id);
+            button.setAttribute('data-name', name);
+            button.style.cssText = `
+                width: 100%;
+                padding: 10px;
+                background: #311b92;
+                color: white;
+                border: 1px solid #795548;
+                border-radius: 8px;
+                cursor: pointer;
+                user-select: none;
+                box-sizing: border-box;
+            `;
+            button.textContent = options.find(opt => opt.selected)?.text || 'Выберите...';
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'custom-select-dropdown';
+            dropdown.style.cssText = `
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                z-index: 1000;
+                background: #311b92;
+                border: 1px solid #795548;
+                border-radius: 8px;
+                margin-top: 2px;
+                max-height: 200px;
+                overflow-y: auto;
+            `;
+
+            options.forEach((opt, index) => {
+                const item = document.createElement('div');
+                item.className = 'custom-select-item';
+                item.dataset.value = opt.value;
+                item.dataset.index = index;
+                item.textContent = opt.text;
+                item.style.cssText = `
+                    padding: 10px;
+                    cursor: pointer;
+                    color: white;
+                    border-bottom: 1px solid #795548;
+                `;
+                if (opt.selected) {
+                    item.style.backgroundColor = '#b71c1c';
+                }
+                item.addEventListener('mouseenter', () => {
+                    item.style.backgroundColor = '#4a148c';
+                });
+                item.addEventListener('mouseleave', () => {
+                    if (opt.selected) {
+                        item.style.backgroundColor = '#b71c1c';
+                    } else {
+                        item.style.backgroundColor = '';
+                    }
+                });
+                dropdown.appendChild(item);
+            });
+
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isVisible = dropdown.style.display === 'block';
+                document.querySelectorAll('.custom-select-dropdown').forEach(d => d.style.display = 'none');
+                dropdown.style.display = isVisible ? 'none' : 'block';
+            });
+
+            dropdown.addEventListener('click', (e) => {
+                const target = e.target.closest('.custom-select-item');
+                if (!target) return;
+
+                const value = target.dataset.value;
+                const text = target.textContent;
+
+                button.textContent = text;
+                dropdown.style.display = 'none';
+
+                let hiddenInput = wrapper.querySelector('input[type="hidden"]');
+                if (!hiddenInput) {
+                    hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = name;
+                    wrapper.appendChild(hiddenInput);
+                }
+                hiddenInput.value = value;
+
+                dropdown.querySelectorAll('.custom-select-item').forEach((item, idx) => {
+                    if (item.dataset.value === value) {
+                        item.style.backgroundColor = '#b71c1c';
+                    } else {
+                        item.style.backgroundColor = '';
+                    }
+                });
+
+                const changeEvent = new Event('change', { bubbles: true });
+                hiddenInput.dispatchEvent(changeEvent);
+
+                if (name === 'priority' || id === 'prioritySelect') {
+                    formData.priority = value;
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!wrapper.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            wrapper.appendChild(button);
+            wrapper.appendChild(dropdown);
+            select.parentNode.replaceChild(wrapper, select);
+            wrapper.dataset.replaced = 'true';
         }
 
-        // --- Three.js сцена и камера ---
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 8);
-        camera.lookAt(0, 0, 0);
+        function init() {
+            document.querySelectorAll('select').forEach(replaceSelect);
+        }
 
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x000000, 0);
-        document.body.appendChild(renderer.domElement);
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (node.nodeType === 1) {
+                        if (node.tagName === 'SELECT') {
+                            replaceSelect(node);
+                        } else {
+                            node.querySelectorAll && node.querySelectorAll('select').forEach(replaceSelect);
+                        }
+                    }
+                });
+            });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
 
-        labelRenderer = new THREE.CSS2DRenderer();
-        labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        labelRenderer.domElement.style.position = 'absolute';
-        labelRenderer.domElement.style.top = '0px';
-        labelRenderer.domElement.style.left = '0px';
-        labelRenderer.domElement.style.pointerEvents = 'none';
-        document.body.appendChild(labelRenderer.domElement);
+        init();
+    }
 
-        // --- Куб с текстурой (опционально) ---
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = 1024;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = 'bold 400px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('λ', canvas.width/2, canvas.height/2 - 120);
-        ctx.font = 'bold 200px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
-        ctx.fillText('LISP', canvas.width/2, canvas.height/2 + 200);
-        const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
-        const geometry = new THREE.BoxGeometry(2, 2, 2);
-        cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
+    // ---------- КОНЕЦ ФИКСА ----------
+
+    // Вызовем фикс после загрузки DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fixAndroidSelects);
+    } else {
+        fixAndroidSelects();
     }
 
     // --- Получение данных пользователя из Bitrix24 ---
@@ -111,7 +215,8 @@
                     userInfoDiv.textContent = 'Не удалось загрузить данные';
                 } else {
                     const user = result.data();
-                    console.log('data::', JSON.stringify(user, null, 2));
+                    var info__ = 'data::' + JSON.stringify(user, null, 2);
+                    console.log(info__);
 
                     var email = user.EMAIL;
                     var id__ = user.ID;
@@ -133,36 +238,76 @@
         userInfoDiv.textContent = 'Автономный режим';
     }
 
+    // --- Three.js сцена и камера ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 8);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);
+    document.body.appendChild(renderer.domElement);
+
+    const labelRenderer = new THREE.CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0px';
+    labelRenderer.domElement.style.left = '0px';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    document.body.appendChild(labelRenderer.domElement);
+
+    // --- Куб с текстурой ---
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = 'bold 400px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('λ', canvas.width/2, canvas.height/2 - 120);
+    ctx.font = 'bold 200px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+    ctx.fillText('LISP', canvas.width/2, canvas.height/2 + 200);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+    const geometry = new THREE.BoxGeometry(2, 2, 2);
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+
     // --- Состояние приложения ---
     let state = 0;
     let selectedCategory = null;
 
     const categories = [
-        { value: 'orgtech', label: '🖨️ Оргтехника', desc: '• подключение рабочего места\n• проблемы с печатью\n• замена картриджей\n• прочие проблемы' },
-        { value: 'software', label: '💻 ПО', desc: '• установка ПО, плагинов\n• настройка работы с сервисами (Госуслуги)\n• проблемы с эксплуатацией ПО\n• ошибки при работе, подключении к сервисам' },
-        { value: 'computers', label: '🖥️ Компьютеры', desc: '• не включается/выключается/перезагружается\n• ошибки\n• модернизация/замена\n• тестирование\n• подключение периферии (наушники, микрофоны, разветвители)' },
-        { value: 'network', label: '🌐 Сетевые работы', desc: '• замена патчкордов\n• тестирование и выявление проблем (тестером)\n• замена сетевого оборудования' },
-        { value: 'meters', label: '📊 Счётчики', desc: '• полная неработоспособность счетчиков\n• не работает телеметрия\n• проверка правильности показаний\n• поиск серийников\n• выгрузки показаний' },
-        { value: 'providers', label: '📡 Провайдеры', desc: '• новое подключение\n• неработоспособность существующего канала\n• замена юрлица в договоре' },
-        { value: 'cameras', label: '📹 Камеры', desc: '• добавление камер\n• просмотр записей\n• неработоспособность камер\n• заявки на очистку' },
-        { value: 'mobile', label: '📱 Сотовая связь/покрытие', desc: '• получение сим-карт\n• добавление личных данных\n• проверка покрытия на объекте\n• заявки на операторов для улучшения покрытия' }
+        { value: 'orgtech', label: '🖨️ Оргтехника',
+          desc: '• подключение рабочего места\n• проблемы с печатью\n• замена картриджей\n• прочие проблемы' },
+        { value: 'software', label: '💻 ПО',
+          desc: '• установка ПО, плагинов\n• настройка работы с сервисами (Госуслуги)\n• проблемы с эксплуатацией ПО\n• ошибки при работе, подключении к сервисам' },
+        { value: 'computers', label: '🖥️ Компьютеры',
+          desc: '• не включается/выключается/перезагружается\n• ошибки\n• модернизация/замена\n• тестирование\n• подключение периферии (наушники, микрофоны, разветвители)' },
+        { value: 'network', label: '🌐 Сетевые работы',
+          desc: '• замена патчкордов\n• тестирование и выявление проблем (тестером)\n• замена сетевого оборудования' },
+        { value: 'meters', label: '📊 Счётчики',
+          desc: '• полная неработоспособность счетчиков\n• не работает телеметрия\n• проверка правильности показаний\n• поиск серийников\n• выгрузки показаний' },
+        { value: 'providers', label: '📡 Провайдеры',
+          desc: '• новое подключение\n• неработоспособность существующего канала\n• замена юрлица в договоре' },
+        { value: 'cameras', label: '📹 Камеры',
+          desc: '• добавление камер\n• просмотр записей\n• неработоспособность камер\n• заявки на очистку' },
+        { value: 'mobile', label: '📱 Сотовая связь/покрытие',
+          desc: '• получение сим-карт\n• добавление личных данных\n• проверка покрытия на объекте\n• заявки на операторов для улучшения покрытия' }
     ];
 
-    let currentPanel = null; // для Three.js или ссылка на HTML-элемент
+    let currentPanel = null;
 
     function createPanel() {
-        // Удаляем предыдущую панель
-        if (useThree) {
-            if (currentPanel) scene.remove(currentPanel);
-        } else {
-            if (htmlContainer) htmlContainer.innerHTML = '';
-        }
+        if (currentPanel) scene.remove(currentPanel);
 
         const div = document.createElement('div');
         div.className = 'ui-panel';
         div.style.pointerEvents = 'auto';
 
-        // Генерация HTML в зависимости от состояния
         switch (state) {
             case 0:
                 let tilesHtml = '<h2>Выберите категорию заявки</h2><div class="category-grid">';
@@ -171,6 +316,19 @@
                 });
                 tilesHtml += '</div>';
                 div.innerHTML = tilesHtml;
+                setTimeout(() => {
+                    const tiles = div.querySelectorAll('.category-tile');
+                    tiles.forEach(tile => {
+                        tile.addEventListener('click', (e) => {
+                            const value = tile.dataset.value;
+                            selectedCategory = categories.find(c => c.value === value);
+                            if (selectedCategory) {
+                                state = 5;
+                                createPanel();
+                            }
+                        });
+                    });
+                }, 0);
                 break;
             case 5:
                 if (!selectedCategory) {
@@ -186,12 +344,22 @@
                         <button id="selectBtn">Выбрать</button>
                     </div>
                 `;
+                setTimeout(() => {
+                    document.getElementById('backBtn')?.addEventListener('click', () => {
+                        state = 0;
+                        createPanel();
+                    });
+                    document.getElementById('selectBtn')?.addEventListener('click', () => {
+                        formData.category = selectedCategory.value;
+                        state = 6;
+                        createPanel();
+                    });
+                }, 0);
                 break;
-            case 6:           //            <select id="prioritySelect" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #311b92; color: white; border: 1px solid #795548; border-radius: 8px;">
-
+            case 6:
                 div.innerHTML = `
-                    <h2>Укажите срочность2</h2>
-                    <select id="prioritySelect">
+                    <h2>Укажите срочность</h2>
+                    <select id="prioritySelect" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #311b92; color: white; border: 1px solid #795548; border-radius: 8px;">
                         <option value="very_high" ${formData.priority === 'very_high' ? 'selected' : ''}>Очень высокая</option>
                         <option value="high" ${formData.priority === 'high' ? 'selected' : ''}>Высокая</option>
                         <option value="medium" ${formData.priority === 'medium' ? 'selected' : ''}>Средняя</option>
@@ -245,116 +413,78 @@
                 break;
         }
 
-        // --- Обработчики событий (делегирование на всей панели) ---
-        div.addEventListener('click', (e) => {
-            const target = e.target;
-
-            if (target.id === 'backBtn') {
-                if (state === 1) state = 6;
-                else if (state === 2) state = 1;
-                else if (state === 3) state = 2;
-                else if (state === 5) state = 0;
-                else if (state === 6) state = 5;
-                createPanel();
-                return;
-            }
-
-            if (target.id === 'nextBtn') {
-                if (state === 1) {
+        setTimeout(() => {
+            if (state === 1) {
+                const input = document.getElementById('titleInput');
+                if (input) {
+                    input.value = formData.title;
+                    input.addEventListener('input', (e) => formData.title = e.target.value);
+                }
+                document.getElementById('backBtn')?.addEventListener('click', () => { state = 6; createPanel(); });
+                document.getElementById('nextBtn')?.addEventListener('click', () => {
                     if (formData.title.trim()) state = 2;
-                    else { alert('Введите тему'); return; }
-                } else if (state === 2) {
+                    else alert('Введите тему');
+                    createPanel();
+                });
+            } else if (state === 2) {
+                const textarea = document.getElementById('descInput');
+                if (textarea) {
+                    textarea.value = formData.description;
+                    textarea.addEventListener('input', (e) => formData.description = e.target.value);
+                }
+                document.getElementById('backBtn')?.addEventListener('click', () => { state = 1; createPanel(); });
+                document.getElementById('nextBtn')?.addEventListener('click', () => {
                     if (formData.description.trim()) state = 3;
-                    else { alert('Введите описание'); return; }
-                } else if (state === 3) {
-                    submitForm(); // пропуск файла
-                    return;
-                } else if (state === 6) {
+                    else alert('Введите описание');
+                    createPanel();
+                });
+            } else if (state === 3) {
+                const fileInput = document.getElementById('fileInput');
+                const fileInfo = document.getElementById('fileInfo');
+                if (fileInput) {
+                    fileInput.addEventListener('change', (e) => {
+                        formData.file = e.target.files[0] || null;
+                        if (fileInfo) fileInfo.textContent = formData.file ? formData.file.name : 'Файл не выбран';
+                    });
+                }
+                document.getElementById('backBtn')?.addEventListener('click', () => { state = 2; createPanel(); });
+                document.getElementById('nextBtn')?.addEventListener('click', () => { submitForm(); });
+                document.getElementById('submitBtn')?.addEventListener('click', () => { submitForm(); });
+            } else if (state === 4) {
+                document.getElementById('restartBtn')?.addEventListener('click', () => {
+                    formData = { category: '', title: '', description: '', file: null, uuid: formData.uuid, user_id: formData.user_id, user_email: formData.user_email, user_phone: formData.user_phone, priority: 'medium' };
+                    selectedCategory = null;
+                    state = 0;
+                    createPanel();
+                });
+            } else if (state === 6) {
+                // Обработчик на select добавлять не нужно – фикс сам обновит formData.priority
+                // Можно оставить для совместимости, но он не повредит
+                const select = div.querySelector('#prioritySelect');
+                if (select) {
+                    select.value = formData.priority;
+                    // Раскомментируйте, если хотите оставить запасной вариант:
+                    // select.addEventListener('change', (e) => formData.priority = e.target.value);
+                }
+                document.getElementById('backBtn')?.addEventListener('click', () => {
+                    state = 5;
+                    createPanel();
+                });
+                document.getElementById('nextBtn')?.addEventListener('click', () => {
                     const select = div.querySelector('#prioritySelect');
                     if (select) formData.priority = select.value;
                     state = 1;
-                }
-                createPanel();
-                return;
-            }
-
-            if (target.id === 'selectBtn') {
-                formData.category = selectedCategory.value;
-                state = 6;
-                createPanel();
-                return;
-            }
-
-            if (target.id === 'submitBtn') {
-                submitForm();
-                return;
-            }
-
-            if (target.id === 'restartBtn') {
-                formData = { category: '', title: '', description: '', file: null, uuid: formData.uuid, user_id: formData.user_id, user_email: formData.user_email, user_phone: formData.user_phone, priority: 'medium' };
-                selectedCategory = null;
-                state = 0;
-                createPanel();
-                return;
-            }
-
-            // Обработка плиток категорий
-            if (target.classList.contains('category-tile')) {
-                const value = target.dataset.value;
-                selectedCategory = categories.find(c => c.value === value);
-                if (selectedCategory) {
-                    state = 5;
                     createPanel();
-                }
-            }
-        });
-
-        // Отдельные обработчики для input и select (можно добавлять сразу)
-        if (state === 1) {
-            const input = div.querySelector('#titleInput');
-            if (input) {
-                input.value = formData.title;
-                input.addEventListener('input', (e) => formData.title = e.target.value);
-            }
-        }
-        if (state === 2) {
-            const textarea = div.querySelector('#descInput');
-            if (textarea) {
-                textarea.value = formData.description;
-                textarea.addEventListener('input', (e) => formData.description = e.target.value);
-            }
-        }
-        if (state === 3) {
-            const fileInput = div.querySelector('#fileInput');
-            const fileInfo = div.querySelector('#fileInfo');
-            if (fileInput) {
-                fileInput.addEventListener('change', (e) => {
-                    formData.file = e.target.files[0] || null;
-                    if (fileInfo) fileInfo.textContent = formData.file ? formData.file.name : 'Файл не выбран';
                 });
             }
-        }
-        if (state === 6) {
-            const select = div.querySelector('#prioritySelect');
-            if (select) {
-                select.value = formData.priority;
-                select.addEventListener('change', (e) => formData.priority = e.target.value);
-            }
-        }
+        }, 0);
 
-        // Вставляем панель в сцену или контейнер
-        if (useThree) {
-            const panelObj = new THREE.CSS2DObject(div);
-            panelObj.position.set(0, 0, 1);
-            scene.add(panelObj);
-            currentPanel = panelObj;
-        } else {
-            if (htmlContainer) {
-                htmlContainer.innerHTML = '';
-                htmlContainer.appendChild(div);
-                currentPanel = div;
-            }
-        }
+        const panelObj = new THREE.CSS2DObject(div);
+        panelObj.position.set(0, 0, 1);
+        scene.add(panelObj);
+        currentPanel = panelObj;
+
+        // После добавления панели в сцену фикс автоматически обработает новые select (благодаря MutationObserver)
     }
 
     function submitForm() {
@@ -404,25 +534,23 @@
 
     createPanel();
 
-    if (useThree) {
-        let time = 0;
-        function animate() {
-            requestAnimationFrame(animate);
-            time += 0.01;
-            cube.material.color.setHSL(time % 1, 1, 0.7);
-            cube.rotation.x += 0.005;
-            cube.rotation.y += 0.01;
-            renderer.render(scene, camera);
-            labelRenderer.render(scene, camera);
-        }
-        animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            labelRenderer.setSize(window.innerWidth, window.innerHeight);
-        });
+    let time = 0;
+    function animate() {
+        requestAnimationFrame(animate);
+        time += 0.01;
+        cube.material.color.setHSL(time % 1, 1, 0.7);
+        cube.rotation.x += 0.005;
+        cube.rotation.y += 0.01;
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
     }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
 })();
