@@ -931,7 +931,7 @@ textarea { width: 100%; font-family: monospace; }
           (send-to-bitrix data request-dir))
         ;; Отправка в GLPI, если включено
         (when (gethash :glpi-enabled *config*)
-          (send-to-glpi data))
+          (send-to-glpi data data request-dir))
         ;; Если дошли до сюда без ошибок — удаляем папку
         (uiop:delete-directory-tree request-dir :validate t)
         (format t "  Папка ~A удалена.~%" request-dir)))))
