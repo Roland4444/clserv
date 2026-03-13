@@ -490,31 +490,29 @@ textarea { width: 100%; font-family: monospace; }
   (format t "All tests passed.~%")
   t)
 
-
+;;;            sbcl --load hello.lisp      --eval '(hello:test-compute-deadline)'
 (defun test-compute-deadline ()
-  (let ((fixed-now 1000000)) ; фиксированное время для теста
-    ;; Тест для very_high
-    (let ((result (compute-deadline "very_high" fixed-now)))
-      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 6 3600))))
-              nil "very_high failed: ~A" result))
-    ;; Тест для high
-    (let ((result (compute-deadline "high" fixed-now)))
-      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 6 3600))))
-              nil "high failed: ~A" result))
-    ;; Тест для medium
-    (let ((result (compute-deadline "medium" fixed-now)))
-      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 24 3600))))
-              nil "medium failed: ~A" result))
-    ;; Тест для low
-    (let ((result (compute-deadline "low" fixed-now)))
-      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 24 3600))))
-              nil "low failed: ~A" result))
-    ;; Тест для very_low
-    (let ((result (compute-deadline "very_low" fixed-now)))
-      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 24 3600))))
-              nil "very_low failed: ~A" result))
-    (format t "test-compute-deadline passed.~%")
-    t))
+  (let ((now (get-universal-time)))
+    (format t "~%Current time (UTC+3): ~A~%" (format-bitrix-deadline now))
+    (flet ((test-one (priority expected-delta)
+             (let* ((expected-time (+ now expected-delta))
+                    (expected-str (format-bitrix-deadline expected-time))
+                    (actual-str (compute-deadline priority now)))
+               (format t "~%Priority: ~A" priority)
+               (format t "~%  Expected (+~A sec): ~A" expected-delta expected-str)
+               (format t "~%  Actual:              ~A" actual-str)
+               (assert (string= actual-str expected-str)
+                       nil
+                       "FAIL: ~A" priority)
+               (format t "  -> OK~%"))))
+      (test-one "very_high" (* 6 3600))
+      (test-one "high"      (* 6 3600))
+      (test-one "medium"    (* 24 3600))
+      (test-one "low"       (* 24 3600))
+      (test-one "very_low"  (* 24 3600))
+      (format t "~%All tests passed.~%")
+      t)))
+
 
 ; Обновлённая функция compute-deadline с необязательным параметром now
 (defun compute-deadline (priority &optional (now (get-universal-time)))
@@ -602,12 +600,7 @@ textarea { width: 100%; font-family: monospace; }
     (format nil "~4,'0d-~2,'0d-~2,'0dT~2,'0d:~2,'0d:~2,'0d+03:00"
             year month day hour minute second)))
 
-; (defun compute-deadline (priority)
-;   (let ((now (get-universal-time)))
-;     (cond ((member priority '("very_high" "high") :test #'string=)
-;            (format-bitrix-deadline (+ now (* 6 3600))))
-;           (t
-;            (format-bitrix-deadline (+ now (* 24 3600)))))))
+
 
 (defun compute-bitrix-priority (priority)
   (if (member priority '("very_high" "high") :test #'string=)
@@ -645,6 +638,7 @@ textarea { width: 100%; font-family: monospace; }
                              (or (cdr (assoc category responsible-alist :test #'string=)) 1)
                              1))
          (auditors-list (prepare-bitrix-auditors auditors-val user-id))
+         (format t "DEBUG: priority in prepare = ~S~%" priority)
          (deadline (compute-deadline priority))
          (priority-val (compute-bitrix-priority priority)))
     (values title description responsible-id auditors-list deadline priority-val)))
@@ -677,7 +671,10 @@ textarea { width: 100%; font-family: monospace; }
 
       ;; 2. Готовим данные для задачи
       (multiple-value-bind (title description responsible-id auditors deadline priority)
-          (prepare-bitrix-task-data
+          (format t "DEBUG: priority from data = ~S~%" (cdr (assoc :priority data)))
+
+          (
+            prepare-bitrix-task-data
            (cdr (assoc :category data))
            (or (cdr (assoc :title data)) "Без темы")
            (or (cdr (assoc :description data)) "")
@@ -1010,3 +1007,5 @@ textarea { width: 100%; font-family: monospace; }
 ;; sbcl --load hello.lisp      --eval '(hello:tests)'
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-id)'
+
+
