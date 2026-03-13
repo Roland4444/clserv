@@ -611,7 +611,7 @@ textarea { width: 100%; font-family: monospace; }
 ;
 (defun format-bitrix-deadline (universal-time)
   (multiple-value-bind (second minute hour day month year)
-      (decode-universal-time universal-time 3)
+      (decode-universal-time universal-time -3)  ; UTC+3
     (format nil "~4,'0d-~2,'0d-~2,'0dT~2,'0d:~2,'0d:~2,'0d+03:00"
             year month day hour minute second)))
 
