@@ -31,7 +31,7 @@
     const ua = navigator.userAgent.toLowerCase();
     const isMobile = /iphone|ipad|ipod|android|wv|bitrix24/i.test(ua);
     const isBitrixApp = typeof BX24 !== 'undefined';
-    const useThree = !isMobile && !isBitrixApp; // Отключаем Three.js на мобильных и в приложении
+    const useThree = false; ///!isMobile && !isBitrixApp; // Отключаем Three.js на мобильных и в приложении
 
     // Переменные для Three.js (только если useThree === true)
     let scene, camera, renderer, labelRenderer, cube, animate;
