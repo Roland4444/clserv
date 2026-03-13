@@ -722,6 +722,17 @@ textarea { width: 100%; font-family: monospace; }
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;                                                      ;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;   ||||||||||||  ||||           ||||||||||||||  ||||  ;;;;;;;;;;;;;;;;;;;;;;;;;;;                           
+;   ||||          ||||           ||||      ||||  ||||  ;;;;;;;;;;;;;;;;;;;;;;;;;;;  
+;   ||||  ||||||  ||||           ||||||||||||||  ||||  ;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;   ||||     |||  |||||||||||||  ||||            ||||  ;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+;   ||||||||||||  |||||||||||||  ||||            ||||  ;;;;;;;;;;;;;;;;;;;;;;;;;;;  
+;                                                      ;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defun extract-string-from-json-string (json-string key)
@@ -730,18 +741,14 @@ textarea { width: 100%; font-family: monospace; }
          (start (search key-str json-string)))
     (unless start
       (error "Поле ~S не найдено в JSON" key-str))
-    ;; позиция после ключа и двоеточия
     (let ((pos (+ start (length key-str))))
-      ;; пропускаем пробелы
       (loop while (and (< pos (length json-string))
                        (member (aref json-string pos) '(#\Space #\Tab)))
             do (incf pos))
-      ;; если начинается с кавычки, пропускаем её
       (when (and (< pos (length json-string))
                  (char= (aref json-string pos) #\"))
         (incf pos))
       (let ((start-pos pos))
-        ;; собираем символы до следующей кавычки
         (loop while (and (< pos (length json-string))
                          (char/= (aref json-string pos) #\"))
               do (incf pos))
@@ -749,7 +756,6 @@ textarea { width: 100%; font-family: monospace; }
             (error "После поля ~S не найдена строка" key-str)
             (subseq json-string start-pos pos))))))
 
-;; Обновлённая функция get-glpi-session-token (без cl-json для парсинга)
 
 
 ;; Тест для extract-string-from-json-string
@@ -767,9 +773,68 @@ textarea { width: 100%; font-family: monospace; }
   (format t "All tests passed for extract-string-from-json-string.~%")
   t)
 
+(defun upload-file-to-glpi (base-url file-path session-token app-token)
+  "Загружает файл в GLPI как документ. Возвращает ID документа."
+  (let* ((url (concatenate 'string base-url "/Document"))
+         (file-name (file-namestring file-path))
+         ;; Читаем файл как байты для отправки
+         (file-content 
+           (with-open-file (stream file-path :element-type '(unsigned-byte 8))
+             (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
+               (read-sequence bytes stream)
+               bytes)))
+         ;; Формируем multipart тело
+         (boundary "----GLPIBoundary")
+         (manifest (format nil "{\"input\": {\"name\": \"~A\", \"_filename\": [\"~A\"]}}" 
+                          file-name file-name))
+         ;; Собираем тело запроса
+         (body-parts (list
+                      (format nil "--~A~%Content-Disposition: form-data; name=\"uploadManifest\"~%~%~A~%" 
+                              boundary manifest)
+                      (format nil "--~A~%Content-Disposition: form-data; name=\"filename[0]\"; filename=\"~A\"~%Content-Type: application/octet-stream~%~%" 
+                              boundary file-name)))
+         ;; Добавляем бинарные данные
+         (body (with-output-to-string (out)
+                 (dolist (part body-parts) (write-string part out))
+                 (write-sequence file-content out)
+                 (format nil "~%--~A--~%" boundary))))
+    (format t "~%>>> UPLOADING FILE TO GLPI: ~A~%" file-name)
+    (multiple-value-bind (response-body status)
+        (dex:post url
+                  :headers `(("Session-Token" . ,session-token)
+                             ("App-Token" . ,app-token)
+                             ("Content-Type" . ,(format nil "multipart/form-data; boundary=~A" boundary)))
+                  :content body)
+      (format t "<<< GLPI UPLOAD RESPONSE status: ~A, body: ~A~%" status response-body)
+      (if (= status 201)  ; 201 Created
+          (extract-number-from-json-string response-body "id")
+          (error "GLPI file upload failed, status ~A: ~A" status response-body)))))
 
 
-(defun send-to-glpi (data)
+  (defun attach-document-to-glpi-ticket (base-url document-id ticket-id session-token app-token)
+  "Привязывает документ с DOCUMENT-ID к тикету TICKET-ID в GLPI."
+  (let* ((url (concatenate 'string base-url "/Document/" (write-to-string document-id) "/Document_Item/"))
+         (payload `(("input" .
+                     (("documents_id" . ,document-id)
+                      ("items_id" . ,ticket-id)
+                      ("itemtype" . "Ticket")))))
+         (json-payload (cl-json:encode-json-to-string payload)))
+    (format t "~%>>> ATTACHING DOCUMENT ~A TO TICKET ~A~%" document-id ticket-id)
+    (format t ">>> JSON: ~A~%" json-payload)
+    (multiple-value-bind (response-body status)
+        (dex:post url
+                  :headers `(("Session-Token" . ,session-token)
+                             ("App-Token" . ,app-token)
+                             ("Content-Type" . "application/json"))
+                  :content json-payload)
+      (format t "<<< GLPI ATTACH RESPONSE status: ~A, body: ~A~%" status response-body)
+      (unless (= status 201)  ; 201 Created
+        (error "Failed to attach document to ticket, status ~A: ~A" status response-body))
+      response-body)))        
+
+
+
+(defun send-to-glpi (data request-dir)
   (let ((base (gethash :glpi-base *config*))
         (app-token (gethash :glpi-app-token *config*))
         (user-token (gethash :glpi-user-token *config*))
@@ -779,30 +844,41 @@ textarea { width: 100%; font-family: monospace; }
         (description (or (cdr (assoc :description data)) "")))
     (unless (and base app-token user-token)
       (error "GLPI параметры не настроены в конфигурации"))
-    (let* ((requester-id
-             (if requester-alist
-                 (or (cdr (assoc category requester-alist :test #'string=)) 2)
-                 2))
-           (session-token (get-glpi-session-token base app-token user-token))
-           (url (concatenate 'string base "/Ticket"))
-           (payload `(("input" .
-                       (("name" . ,title)
-                        ("content" . ,description)
-                        ("_users_id_requester" . ,requester-id)))))
-           (json-payload (cl-json:encode-json-to-string payload)))
-      (handler-case
-          (multiple-value-bind (body status)
-              (dex:post url
-                        :content json-payload
-                        :headers `(("App-Token" . ,app-token)
-                                   ("Session-Token" . ,session-token)
-                                   ("Content-Type" . "application/json")))
-            (format t "~%GLPI ответ (статус ~A): ~A~%" status body)
-            (when (>= status 400)
-              (error "GLPI request failed with status ~A" status)))
-        (dex:http-request-failed (e)
-          (format t "~%Ошибка HTTP при создании тикета GLPI: ~A~%" e)
-          (error e))))))
+    
+    ;; 1. Получаем сессионный токен
+    (let* ((session-token (get-glpi-session-token base app-token user-token))
+           ;; 2. Определяем requester_id
+           (requester-id (if requester-alist
+                             (or (cdr (assoc category requester-alist :test #'string=)) 2)
+                             2))
+           ;; 3. Создаём тикет
+           (ticket-id (create-glpi-ticket base title description requester-id 
+                                          session-token app-token))
+           ;; 4. Ищем файл в папке заявки (как в Bitrix)
+           (file-path (find-uploaded-file request-dir)))
+      
+      ;; 5. Если есть файл — загружаем и прикрепляем
+      (when file-path
+        (handler-case
+            (let ((doc-id (upload-file-to-glpi base file-path session-token app-token)))
+              (attach-document-to-glpi-ticket base doc-id ticket-id session-token app-token)
+              (format t "    Файл ~A прикреплён к тикету ~A~%" 
+                      (file-namestring file-path) ticket-id))
+          (error (e)
+            (format t "    Ошибка при загрузке/прикреплении файла в GLPI: ~A~%" e))))
+      
+      (format t "GLPI тикет создан, ID: ~A~%" ticket-id)
+      ticket-id)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 
