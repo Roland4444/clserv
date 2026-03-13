@@ -16,7 +16,7 @@
   #:test-bitrix-update-json   #:test-find-uploaded-file
   #:test-compute-deadline #:testExtractToken))
 (in-package :hello)
-(declaim (ftype (function (string string) integer) send-to-glpi))
+(declaim (ftype (function (list t) integer) send-to-glpi))
 
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
