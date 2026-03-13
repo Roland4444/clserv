@@ -638,9 +638,9 @@ textarea { width: 100%; font-family: monospace; }
                              (or (cdr (assoc category responsible-alist :test #'string=)) 1)
                              1))
          (auditors-list (prepare-bitrix-auditors auditors-val user-id))
-         (format t "DEBUG: priority in prepare = ~S~%" priority)
          (deadline (compute-deadline priority))
          (priority-val (compute-bitrix-priority priority)))
+    (format t "DEBUG: priority in prepare = ~S~%" priority)   ; отладка
     (values title description responsible-id auditors-list deadline priority-val)))
 
 (defun create-bitrix-task (base-url title description responsible-id auditors deadline priority)
@@ -671,10 +671,7 @@ textarea { width: 100%; font-family: monospace; }
 
       ;; 2. Готовим данные для задачи
       (multiple-value-bind (title description responsible-id auditors deadline priority)
-          (format t "DEBUG: priority from data = ~S~%" (cdr (assoc :priority data)))
-
-          (
-            prepare-bitrix-task-data
+          (prepare-bitrix-task-data
            (cdr (assoc :category data))
            (or (cdr (assoc :title data)) "Без темы")
            (or (cdr (assoc :description data)) "")
@@ -682,6 +679,7 @@ textarea { width: 100%; font-family: monospace; }
            (cdr (assoc :user_id data))
            responsible-alist
            auditors-val)
+        (format t "DEBUG: priority from data = ~S~%" (cdr (assoc :priority data))) ; отладка
 
         ;; 3. Создаём задачу
         (let ((task-id (create-bitrix-task base-url title description responsible-id
