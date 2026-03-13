@@ -5,7 +5,6 @@
 (asdf:load-system :bordeaux-threads)
 (asdf:load-system :dexador)
 (asdf:load-system :cl-base64)
-(asdf:load-system :babel)
 
 
 
@@ -782,34 +781,20 @@ textarea { width: 100%; font-family: monospace; }
   t)
 
 (defun upload-file-to-glpi (base-url file-path session-token app-token)
-  "Загружает файл в GLPI как документ. Возвращает ID документа."
+  "Загружает файл в GLPI как документ. Dexador сам строит multipart."
   (let* ((url (concatenate 'string base-url "/Document"))
          (file-name (file-namestring file-path))
-         (file-content 
-           (with-open-file (stream file-path :element-type '(unsigned-byte 8))
-             (let ((bytes (make-array (file-length stream) :element-type '(unsigned-byte 8))))
-               (read-sequence bytes stream)
-               bytes)))
-         (boundary "----GLPIBoundary")
-         (manifest (format nil "{\"input\": {\"name\": \"~A\", \"_filename\": [\"~A\"]}}" 
-                          file-name file-name))
-         ;; Формируем части тела как байтовые векторы
-         (parts (list 
-                 (string-to-octets (format nil "--~A~%Content-Disposition: form-data; name=\"uploadManifest\"~%~%~A~%" 
-                                           boundary manifest))
-                 (string-to-octets (format nil "--~A~%Content-Disposition: form-data; name=\"filename[0]\"; filename=\"~A\"~%Content-Type: application/octet-stream~%~%" 
-                                           boundary file-name))
-                 file-content
-                 (string-to-octets (format nil "~%--~A--~%" boundary))))
-         ;; Объединяем все части в один байтовый вектор
-         (body (apply #'concatenate 'vector parts)))
+         (manifest (format nil "{\"input\": {\"name\": \"~A\", \"_filename\": [\"~A\"]}}"
+                           file-name file-name)))
     (format t "~%>>> UPLOADING FILE TO GLPI: ~A~%" file-name)
+    (format t "    file-path: ~A~%" file-path)
+    (format t "    manifest: ~A~%" manifest)
     (multiple-value-bind (response-body status)
         (dex:post url
-                  :headers `(("Session-Token" . ,session-token)
-                             ("App-Token" . ,app-token)
-                             ("Content-Type" . ,(format nil "multipart/form-data; boundary=~A" boundary)))
-                  :content body)
+          :headers `(("Session-Token" . ,session-token)
+                     ("App-Token" . ,app-token))
+          :content `(("uploadManifest" . ,manifest)
+                     ("filename[0]" . ,file-path)))
       (format t "<<< GLPI UPLOAD RESPONSE status: ~A, body: ~A~%" status response-body)
       (if (= status 201)
           (extract-number-from-json-string response-body "id")
