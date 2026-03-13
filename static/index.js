@@ -109,7 +109,7 @@
             const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
             const geometry = new THREE.BoxGeometry(2, 2, 2);
             const cube = new THREE.Mesh(geometry, material);
-        //    scene.add(cube);
+            scene.add(cube);
 
             // --- Состояние приложения ---
             let state = 0; // 0: выбор категории, 1: тема, 2: описание, 3: файл, 4: завершение, 5: подтверждение категории
@@ -343,31 +343,13 @@
                     //     state = 1; // переход к вводу темы
                     //     createPanel();
                     // });
-
-
-                    //////////////////////////////////////////////////
-                        // const select = div.querySelector('#prioritySelect');
-                        // if (select) {
-                        //     select.value = formData.priority;
-                        //     select.addEventListener('change', (e) => {
-                        //     formData.priority = e.target.value;
-                        // });
-                        // }
-                        ////////////////////////////////////////////////////////
                         const select = div.querySelector('#prioritySelect');
-if (select) {
-    select.value = formData.priority;
-    try {
-        select.addEventListener('change', (e) => {
-            formData.priority = e.target.value;
-        });
-    } catch (err) {
-        console.error('Ошибка при добавлении обработчика select:', err);
-    }
-} else {
-    console.warn('Элемент #prioritySelect не найден');
-}
-
+                        if (select) {
+                            select.value = formData.priority;
+                            select.addEventListener('change', (e) => {
+                            formData.priority = e.target.value;
+                        });
+                        }
                         document.getElementById('backBtn')?.addEventListener('click', () => {
                         state = 5; // возврат к подтверждению категории
                         createPanel();
