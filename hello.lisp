@@ -517,10 +517,25 @@ textarea { width: 100%; font-family: monospace; }
 ; Обновлённая функция compute-deadline с необязательным параметром now
 (defun compute-deadline (priority &optional (now (get-universal-time)))
   (let ((now-utc now))
+    (multiple-value-bind (sec min hour day month year) (decode-universal-time now-utc 0)
+      (format t "DEBUG compute-deadline: now-utc=~A (UTC), decoded UTC: ~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d~%" 
+              now-utc year month day hour min sec))
+    (multiple-value-bind (sec min hour day month year) (decode-universal-time now-utc 3)
+      (format t "DEBUG compute-deadline: local time (UTC+3): ~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d~%" 
+              year month day hour min sec))
+    (format t "DEBUG compute-deadline: priority=~S~%" priority)
     (cond ((member priority '("very_high" "high") :test #'string=)
-           (format-bitrix-deadline (+ now-utc (* 6 3600))))
+           (let ((future (+ now-utc (* 6 3600))))
+             (multiple-value-bind (sec min hour day month year) (decode-universal-time future 3)
+               (format t "DEBUG future (+6h local): ~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d~%" 
+                       year month day hour min sec))
+             (format-bitrix-deadline future)))
           (t
-           (format-bitrix-deadline (+ now-utc (* 24 3600)))))))
+           (let ((future (+ now-utc (* 24 3600))))
+             (multiple-value-bind (sec min hour day month year) (decode-universal-time future 3)
+               (format t "DEBUG future (+24h local): ~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d~%" 
+                       year month day hour min sec))
+             (format-bitrix-deadline future))))))
 
 
 (defun make-bitrix-task-add-payload (title description responsible-id auditors deadline priority group-id)
