@@ -835,6 +835,30 @@ textarea { width: 100%; font-family: monospace; }
       response-body)))        
 
 
+(defun create-glpi-ticket (base-url title description requester-id session-token app-token)
+  "Создаёт тикет в GLPI и возвращает его ID."
+  (let* ((url (concatenate 'string base-url "/Ticket"))
+         (payload `(("input" .
+                     (("name" . ,title)
+                      ("content" . ,description)
+                      ("_users_id_requester" . ,requester-id)))))
+         (json-payload (cl-json:encode-json-to-string payload)))
+    (format t "~%>>> CREATE GLPI TICKET~%")
+    (format t ">>> URL: ~A~%" url)
+    (format t ">>> payload: ~S~%" payload)
+    (format t ">>> JSON: ~A~%" json-payload)
+    (multiple-value-bind (body status)
+        (dex:post url
+                  :content json-payload
+                  :headers `(("Session-Token" . ,session-token)
+                             ("App-Token" . ,app-token)
+                             ("Content-Type" . "application/json")))
+      (format t "<<< GLPI CREATE TICKET RESPONSE status: ~A, body: ~A~%" status body)
+      (if (= status 201)
+          (extract-number-from-json-string body "id")
+          (error "GLPI create ticket failed, status ~A: ~A" status body)))))
+
+
 
 (defun send-to-glpi (data request-dir)
   (let ((base (gethash :glpi-base *config*))
