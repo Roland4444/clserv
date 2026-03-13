@@ -638,9 +638,16 @@ textarea { width: 100%; font-family: monospace; }
                              (or (cdr (assoc category responsible-alist :test #'string=)) 1)
                              1))
          (auditors-list (prepare-bitrix-auditors auditors-val user-id))
-         (deadline (compute-deadline priority))
+         (deadline (progn
+                     (format t "DEBUG calling compute-deadline with priority=~S~%" priority)
+                     (compute-deadline priority)))
          (priority-val (compute-bitrix-priority priority)))
-    (format t "DEBUG: priority in prepare = ~S~%" priority)   ; отладка
+    (format t "DEBUG prepare-bitrix-task-data: category=~S, title=~S, priority=~S, user-id-str=~S~%" category title priority user-id-str)
+    (format t "  user-id (parsed)=~S~%" user-id)
+    (format t "  responsible-id=~S~%" responsible-id)
+    (format t "  auditors-list=~S~%" auditors-list)
+    (format t "  deadline (computed)=~S~%" deadline)
+    (format t "  priority-val=~S~%" priority-val)
     (values title description responsible-id auditors-list deadline priority-val)))
 
 (defun create-bitrix-task (base-url title description responsible-id auditors deadline priority)
@@ -679,6 +686,7 @@ textarea { width: 100%; font-family: monospace; }
            (cdr (assoc :user_id data))
            responsible-alist
            auditors-val)
+        (format t "DEBUG: deadline from prepare = ~S~%" deadline)
         (format t "DEBUG: priority from data = ~S~%" (cdr (assoc :priority data))) ; отладка
 
         ;; 3. Создаём задачу
