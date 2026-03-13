@@ -462,7 +462,7 @@ function submitForm() {
                 renderer.render(scene, camera);
                 labelRenderer.render(scene, camera);
             }
-           // animate();
+            animate();
 
             // --- Обработка ресайза ---
             window.addEventListener('resize', () => {
