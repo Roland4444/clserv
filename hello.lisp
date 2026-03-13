@@ -275,46 +275,46 @@
 
 
 
-(hunchentoot:define-easy-handler (edit-handler :uri "/edit") (content)
-  (case (hunchentoot:request-method*)
-    ;; GET: показать форму с текущим содержимым
-    (:get
-     (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-     (let ((file-content
-             (with-open-file (f "hello.lisp" :direction :input)
-               (let ((str (make-string (file-length f))))
-                 (read-sequence str f)
-                 str))))
-       (format nil "
-<html>
-<head><title>Edit hello.lisp</title>
-<style>
-body { font-family: sans-serif; margin: 20px; }
-textarea { width: 100%; font-family: monospace; }
-</style>
-</head>
-<body>
-  <h1>Редактирование hello.lisp</h1>
-  <form method='post' action='/edit'>
-    <textarea name='content' rows='30'>~A</textarea><br>
-    <input type='submit' value='Сохранить и перезагрузить'>
-  </form>
-  <p><a href='/r'>Перезагрузить без сохранения</a></p>
-</body>
-</html>"
-               (hunchentoot:escape-for-html file-content))))
-    ;; POST: сохранить и перезагрузить
-    (:post
-     (if content
-         (progn
-           (with-open-file (f "hello.lisp" :direction :output :if-exists :supersede)
-             (write-string content f))
-           (load "hello.lisp")
-           (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-           "Сохранено и перезагружено. <a href='/edit'>Вернуться</a>")
-         (progn
-           (setf (hunchentoot:return-code*) 400)
-           "Ошибка: нет данных")))))
+; (hunchentoot:define-easy-handler (edit-handler :uri "/edit") (content)
+;   (case (hunchentoot:request-method*)
+;     ;; GET: показать форму с текущим содержимым
+;     (:get
+;      (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+;      (let ((file-content
+;              (with-open-file (f "hello.lisp" :direction :input)
+;                (let ((str (make-string (file-length f))))
+;                  (read-sequence str f)
+;                  str))))
+;        (format nil "
+; <html>
+; <head><title>Edit hello.lisp</title>
+; <style>
+; body { font-family: sans-serif; margin: 20px; }
+; textarea { width: 100%; font-family: monospace; }
+; </style>
+; </head>
+; <body>
+;   <h1>Редактирование hello.lisp</h1>
+;   <form method='post' action='/edit'>
+;     <textarea name='content' rows='30'>~A</textarea><br>
+;     <input type='submit' value='Сохранить и перезагрузить'>
+;   </form>
+;   <p><a href='/r'>Перезагрузить без сохранения</a></p>
+; </body>
+; </html>"
+;                (hunchentoot:escape-for-html file-content))))
+;     ;; POST: сохранить и перезагрузить
+;     (:post
+;      (if content
+;          (progn
+;            (with-open-file (f "hello.lisp" :direction :output :if-exists :supersede)
+;              (write-string content f))
+;            (load "hello.lisp")
+;            (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+;            "Сохранено и перезагружено. <a href='/edit'>Вернуться</a>")
+;          (progn
+;            (setf (hunchentoot:return-code*) 400)
+;            "Ошибка: нет данных")))))
 
 
 
