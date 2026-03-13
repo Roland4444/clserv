@@ -13,7 +13,8 @@
 (defpackage :hello
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
-  #:test-bitrix-update-json   #:test-find-uploaded-file))
+  #:test-bitrix-update-json   #:test-find-uploaded-file
+  #:test-compute-deadline))
 (in-package :hello)
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -489,6 +490,41 @@ textarea { width: 100%; font-family: monospace; }
   (format t "All tests passed.~%")
   t)
 
+
+(defun test-compute-deadline ()
+  (let ((fixed-now 1000000)) ; фиксированное время для теста
+    ;; Тест для very_high
+    (let ((result (compute-deadline "very_high" fixed-now)))
+      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 6 3600))))
+              nil "very_high failed: ~A" result))
+    ;; Тест для high
+    (let ((result (compute-deadline "high" fixed-now)))
+      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 6 3600))))
+              nil "high failed: ~A" result))
+    ;; Тест для medium
+    (let ((result (compute-deadline "medium" fixed-now)))
+      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 24 3600))))
+              nil "medium failed: ~A" result))
+    ;; Тест для low
+    (let ((result (compute-deadline "low" fixed-now)))
+      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 24 3600))))
+              nil "low failed: ~A" result))
+    ;; Тест для very_low
+    (let ((result (compute-deadline "very_low" fixed-now)))
+      (assert (string= result (format-bitrix-deadline (+ fixed-now (* 24 3600))))
+              nil "very_low failed: ~A" result))
+    (format t "test-compute-deadline passed.~%")
+    t))
+
+; Обновлённая функция compute-deadline с необязательным параметром now
+(defun compute-deadline (priority &optional (now (get-universal-time)))
+  (let ((now-utc now))
+    (cond ((member priority '("very_high" "high") :test #'string=)
+           (format-bitrix-deadline (+ now-utc (* 6 3600))))
+          (t
+           (format-bitrix-deadline (+ now-utc (* 24 3600)))))))
+
+
 (defun make-bitrix-task-add-payload (title description responsible-id auditors deadline priority group-id)
   "Создаёт payload для создания задачи (tasks.task.add)."
   `(("fields" .
@@ -566,12 +602,12 @@ textarea { width: 100%; font-family: monospace; }
     (format nil "~4,'0d-~2,'0d-~2,'0dT~2,'0d:~2,'0d:~2,'0d+03:00"
             year month day hour minute second)))
 
-(defun compute-deadline (priority)
-  (let ((now (get-universal-time)))
-    (cond ((member priority '("very_high" "high") :test #'string=)
-           (format-bitrix-deadline (+ now (* 6 3600))))
-          (t
-           (format-bitrix-deadline (+ now (* 24 3600)))))))
+; (defun compute-deadline (priority)
+;   (let ((now (get-universal-time)))
+;     (cond ((member priority '("very_high" "high") :test #'string=)
+;            (format-bitrix-deadline (+ now (* 6 3600))))
+;           (t
+;            (format-bitrix-deadline (+ now (* 24 3600)))))))
 
 (defun compute-bitrix-priority (priority)
   (if (member priority '("very_high" "high") :test #'string=)
@@ -885,6 +921,50 @@ textarea { width: 100%; font-family: monospace; }
     (error (e)
       (setf (hunchentoot:return-code*) 400)
       (cl-json:encode-json-to-string `((:status . "error") (:message . ,(princ-to-string e)))))))
+
+(defun test-upload-form ()
+  "<!DOCTYPE html>
+<html>
+<head><title>Test File Upload</title></head>
+<body>
+  <h2>Test File Upload</h2>
+  <form method=\"POST\" action=\"/test-upload\" enctype=\"multipart/form-data\">
+    <input type=\"file\" name=\"file\">
+    <input type=\"submit\" value=\"Upload\">
+  </form>
+</body>
+</html>")
+
+;; Хендлер для тестирования загрузки файла (GET — форма, POST — обработка)
+(hunchentoot:define-easy-handler (test-upload :uri "/test-upload") ()
+  (case (hunchentoot:request-method*)
+    (:get
+     (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+     (test-upload-form))
+    (:post
+     (setf (hunchentoot:content-type*) "text/plain; charset=utf-8")
+     (let* ((uploaded-file (hunchentoot:post-parameter "file"))
+            (temp-path (when (and (consp uploaded-file) (>= (length uploaded-file) 2))
+                         (first uploaded-file)))
+            (orig-name (when (and (consp uploaded-file) (>= (length uploaded-file) 2))
+                         (second uploaded-file)))
+            (save-dir #P"./test-uploads/")
+            (dest-path (when (and temp-path orig-name)
+                         (ensure-directories-exist save-dir)
+                         (merge-pathnames (make-pathname :name orig-name) save-dir))))
+       ;; Сохраняем файл, если получилось
+       (when dest-path
+         (uiop:copy-file temp-path dest-path))
+       ;; Возвращаем подробную информацию
+       (format nil "Uploaded file structure:~%~S~%~%Temp path: ~A~%Original name: ~A~%Saved to: ~A"
+               uploaded-file temp-path orig-name dest-path)))))
+
+
+
+
+
+
+
 
 
 (defun start-server (&key (port 11111))
