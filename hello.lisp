@@ -668,10 +668,10 @@ textarea { width: 100%; font-family: monospace; }
     (format t "  priority-val=~S~%" priority-val)
     (values title description responsible-id auditors-list deadline priority-val)))
 
-(defun create-bitrix-task (base-url title description responsible-id auditors deadline priority)
+(defun create-bitrix-task (base-url title description responsible-id auditors deadline priority created-by)
   "Создаёт задачу в Bitrix и возвращает её ID."
   (let* ((payload (make-bitrix-task-add-payload
-                   title description responsible-id auditors deadline priority 10))
+                   title description responsible-id auditors deadline priority 10 created-by))
          (json-payload (cl-json:encode-json-to-string payload))
          (create-url (concatenate 'string base-url "tasks.task.add")))
     (multiple-value-bind (body status)
@@ -694,8 +694,8 @@ textarea { width: 100%; font-family: monospace; }
                       (let ((upload-url (concatenate 'string base-url "disk.folder.uploadfile")))
                         (upload-file-to-bitrix-task-helper upload-url file-path)))))
 
-      ;; 2. Готовим данные для задачи
-      (multiple-value-bind (title description responsible-id auditors deadline priority)
+      ;; 2. Готовим данные для задачи (теперь получаем и user-id)
+      (multiple-value-bind (title description responsible-id auditors deadline priority created-by)
           (prepare-bitrix-task-data
            (cdr (assoc :category data))
            (or (cdr (assoc :title data)) "Без темы")
@@ -705,11 +705,12 @@ textarea { width: 100%; font-family: monospace; }
            responsible-alist
            auditors-val)
         (format t "DEBUG: deadline from prepare = ~S~%" deadline)
-        (format t "DEBUG: priority from data = ~S~%" (cdr (assoc :priority data))) ; отладка
+        (format t "DEBUG: priority from data = ~S~%" (cdr (assoc :priority data)))
+        (format t "DEBUG: created-by = ~S~%" created-by)   ; отладка
 
         ;; 3. Создаём задачу
         (let ((task-id (create-bitrix-task base-url title description responsible-id
-                                           auditors deadline priority)))
+                                           auditors deadline priority created-by)))
           (format t "task-id: ~A~%" task-id)
 
           ;; 4. Прикрепляем файл, если он был загружен
@@ -719,7 +720,6 @@ textarea { width: 100%; font-family: monospace; }
               (format t "Файл прикреплён к задаче ~A~%" task-id)))
           (format t "=== SEND-TO-BITRIX END ===~%")
           task-id)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
