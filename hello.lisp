@@ -246,7 +246,12 @@
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") ()
   (setf (hunchentoot:content-type*) "text/html")
-  (chat-html))
+ ;; (chat-html))
+ (let  ((target "https://glpi.upshepard.ru/Helpdesk"))
+ (hunchentoot:redirect target)))
+  
+
+;;(hunchentoot:redirect (format nil "https://glpi.upshepard.ru/Helpdesk?
 
 
 (defun static-handler ()
@@ -1167,7 +1172,7 @@
     (error "Missing target URL"))
   (hunchentoot:redirect target))
 
-
+;;(hunchentoot:redirect (format nil "https://glpi.upshepard.ru/Helpdesk?auth=~A" token))
 (defun log-error-to-file (e)
   "Записывает сообщение об ошибке в файл errors.log с временной меткой."
   (with-open-file (log-stream "errors.log"
