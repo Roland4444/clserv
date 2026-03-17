@@ -1149,7 +1149,17 @@
 
 
 
-
+(defun log-error-to-file (e)
+  "Записывает сообщение об ошибке в файл errors.log с временной меткой."
+  (with-open-file (log-stream "errors.log"
+                               :direction :output
+                               :if-exists :append
+                               :if-does-not-exist :create
+                               :external-format :utf-8)
+    (multiple-value-bind (second minute hour day month year)
+        (get-decoded-time)
+      (format log-stream "[~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d] ~A~%"
+              year month day hour minute second e))))
 
 
 
