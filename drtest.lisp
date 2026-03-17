@@ -23,5 +23,4 @@
               :content json-body
               :verbose t)))
 
-;; Пример вызова
 (create-bitrix-task)

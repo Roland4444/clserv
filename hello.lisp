@@ -1172,13 +1172,25 @@
   (load-config)
   
   ;; Запускаем фоновый поток для обработки заявок
-  (bt:make-thread
-    (lambda ()
-      (loop
-        (sleep 10)   ; интервал сканирования
-        (when (gethash :processing-enabled *config*)
-          (scan-requests))))
-    :name "request-processor")
+(bt:make-thread
+  (lambda ()
+    (loop
+      (sleep 10)
+      (handler-case
+          (when (gethash :processing-enabled *config*)
+            (scan-requests))
+        (error (e)
+          (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
+          (log-error-to-file e)
+          (finish-output nil)))))
+  :name "request-processor")
+  ; (bt:make-thread
+  ;   (lambda ()
+  ;     (loop
+  ;       (sleep 10)   ; интервал сканирования
+  ;       (when (gethash :processing-enabled *config*)
+  ;         (scan-requests))))
+  ;   :name "request-processor")
   
   ;; Запуск сервера
   (start-server)
