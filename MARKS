@@ -180,3 +180,22 @@ time":{"start":1773309896,"finish":1773309896.811638,"duration":0.81163811683654
 
 ENABLE API GLPI
 CREATE API TOKEN GLPI::
+
+DEMO
+https://b24-e8jgcd.bitrix24.ru/rest/1/h83n1s0wjgr28i93/
+
+
+REAL BITRIX
+https://relits.bitrix24.ru/rest/336/xe4qtbm1c6bhi195/
+
+
+
+
+((:BITRIX-URL . "https://relits.bitrix24.ru/rest/336/xe4qtbm1c6bhi195/")
+ (:GLPI-BASE . "https://glpi.upshepard.ru/apirest.php") (:GLPI-APP-TOKEN . "4GfWLd5HbXcP3wpu3FBfVgEQWQJxttPz8tVOI5>
+ (:GLPI-USER-TOKEN . "rElCL2AROwCoP6kuKYw4ctBsEfC1wuWALt0EjO98") (:BITRIX-ENABLED . T) (:GLPI-ENABLED . T)
+ (:PROCESSING-ENABLED . T) (:BITRIX-AUDITORS 1 271 251 336 135)
+ (:BITRIX-RESPONSIBLE ("orgtech" . 135) ("software" . 135) ("computers" . 135) ("network" . 135) ("meters" . 271)
+  ("providers" . 271) ("cameras" . 271) ("mobile" . 271))
+ (:GLPI-REQUESTER ("orgtech" . 2) ("software" . 2) ("computers" . 2) ("network" . 2) ("meters" . 2) ("providers" .>
+  ("cameras" . 2) ("mobile" . 2)))

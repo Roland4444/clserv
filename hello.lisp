@@ -248,6 +248,35 @@
   (setf (hunchentoot:content-type*) "text/html")
   (chat-html))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;REVERCE PROXY REQUEST;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun proxy-to-glpi (login)
+  "Выполняет GET-запрос к GLPI Helpdesk с заголовком REMOTE_USER и возвращает ответ."
+  (let* ((url "https://glpi.upshepard.ru/Helpdesk")
+         (headers `(("REMOTE_USER" . ,login))))
+    (multiple-value-bind (body status headers)
+        (dex:get url :headers headers :want-stream t) ; :want-stream, чтобы не читать всё тело, если оно большое
+      (setf (hunchentoot:return-code*) status)
+      ;; Прокидываем все заголовки ответа (кроме тех, что могут помешать)
+      (loop for (name . value) in headers
+            do (setf (hunchentoot:header-out name) value))
+      ;; Возвращаем тело как есть
+      (hunchentoot:raw-post-data :force-binary t :want-stream t body))))
+
+;; Хендлер, который принимает логин из параметра и вызывает прокси
+(hunchentoot:define-easy-handler (go-to-glpi :uri "/go-to-glpi") (login)
+  (unless login
+    (setf (hunchentoot:return-code*) 400)
+    (return-from go-to-glpi "Missing login parameter"))
+  (proxy-to-glpi login))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
+
+
 
 (defun static-handler ()
   (let* ((uri (hunchentoot:request-uri*))
