@@ -1068,16 +1068,12 @@
         (dex:request target-url
                      :method method
                      :headers `(("REMOTE_USER" . "post-only"))
-                     :content content
-                     :want-stream t)
+                     :content content)
       (setf (hunchentoot:return-code*) status)
-      ;; headers — хеш-таблица
       (maphash (lambda (name value)
                  (setf (hunchentoot:header-out name) value))
                headers)
-      (if (streamp body)
-          (hunchentoot:raw-post-data :want-stream t :force-binary t body)
-          body))))
+      body)))   ; возвращаем тело (строку или байтовый вектор)
 
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
