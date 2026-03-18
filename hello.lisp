@@ -1067,7 +1067,7 @@
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("REMOTE_USER" . "post-only"))
+                     :headers `(("R_ACCESS" . "post-only"))
                      :content content
                      :want-stream nil
                      :force-binary t)
