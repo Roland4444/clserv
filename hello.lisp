@@ -246,9 +246,9 @@
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") ()
   (setf (hunchentoot:content-type*) "text/html")
- ;; (chat-html))
- (let  ((target "https://glpi.upshepard.ru/Helpdesk"))
- (hunchentoot:redirect target)))
+  (chat-html))
+ ;;(let  ((target "https://glpi.upshepard.ru/Helpdesk"))
+ ;;(hunchentoot:redirect target)))
   
 
 ;;(hunchentoot:redirect (format nil "https://glpi.upshepard.ru/Helpdesk?
