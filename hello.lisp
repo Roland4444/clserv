@@ -1055,8 +1055,6 @@
 
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-   (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
-  (force-output)
   (let* ((original-uri (hunchentoot:request-uri*))
          (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
@@ -1064,6 +1062,8 @@
                                    relative-path))
          (method (hunchentoot:request-method*))
          (content (hunchentoot:raw-post-data :force-binary t)))
+    (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" original-uri)
+    (force-output)
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
@@ -1071,11 +1071,15 @@
                      :content content
                      :want-stream t)
       (setf (hunchentoot:return-code*) status)
-      (loop for (name . value) in headers
-            do (setf (hunchentoot:header-out name) value))
+      ;; headers — хеш-таблица
+      (maphash (lambda (name value)
+                 (setf (hunchentoot:header-out name) value))
+               headers)
       (if (streamp body)
           (hunchentoot:raw-post-data :want-stream t :force-binary t body)
           body))))
+
+
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
       hunchentoot:*dispatch-table*)          
 
