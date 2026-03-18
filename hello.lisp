@@ -1068,12 +1068,20 @@
         (dex:request target-url
                      :method method
                      :headers `(("REMOTE_USER" . "post-only"))
-                     :content content)
+                     :content content
+                     :want-stream nil
+                     :force-binary t)
       (setf (hunchentoot:return-code*) status)
       (maphash (lambda (name value)
                  (setf (hunchentoot:header-out name) value))
                headers)
-      body)))   ; возвращаем тело (строку или байтовый вектор)
+      ;; Запрещаем keep-alive, чтобы Nginx не ждал продолжения
+      (setf (hunchentoot:header-out "Connection") "close")
+      (when (streamp body)
+        (setf body (with-output-to-string (s)
+                     (loop for byte = (read-byte body nil nil)
+                           while byte do (write-byte byte s)))))
+      body)))
 
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
