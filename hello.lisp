@@ -246,7 +246,12 @@
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") ()
   (setf (hunchentoot:content-type*) "text/html")
-  (chat-html))
+ ;; (chat-html))
+ (let  ((target "https://glpi.upshepard.ru/Helpdesk"))
+ (hunchentoot:redirect target)))
+  
+
+;;(hunchentoot:redirect (format nil "https://glpi.upshepard.ru/Helpdesk?
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;REVERCE PROXY REQUEST;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1174,10 +1179,29 @@
        ;; Возвращаем подробную информацию
        (format nil "Uploaded file structure:~%~S~%~%Temp path: ~A~%Original name: ~A~%Saved to: ~A"
                uploaded-file temp-path orig-name dest-path)))))
+;;http://localhost:11111/redirect-internal?target=chat&cookie-name=test&cookie-value=123
+;; Редирект на внутренний URL (относительный путь)
+(hunchentoot:define-easy-handler (redirect-internal :uri "/redirect-internal") (target cookie-name cookie-value)
+  (setf (hunchentoot:content-type*) "text/plain")
+  ;; Устанавливаем куку, если переданы имя и значение
+  (when (and cookie-name cookie-value)
+    (setf (hunchentoot:header-out "Set-Cookie")
+          (format nil "~A=~A; Path=/" cookie-name cookie-value)))
+  (if target
+      (hunchentoot:redirect (concatenate 'string "/" target))
+      (hunchentoot:redirect "/")))
+;;http://localhost:11111/redirect-external?target=https://example.com&cookie-name=foo&cookie-value=bar
+;; Редирект на внешний URL (абсолютный)
+(hunchentoot:define-easy-handler (redirect-external :uri "/redirect-external") (target cookie-name cookie-value)
+  (setf (hunchentoot:content-type*) "text/plain")
+  (when (and cookie-name cookie-value)
+    (setf (hunchentoot:header-out "Set-Cookie")
+          (format nil "~A=~A; Path=/" cookie-name cookie-value)))
+  (unless target
+    (error "Missing target URL"))
+  (hunchentoot:redirect target))
 
-
-
-
+;;(hunchentoot:redirect (format nil "https://glpi.upshepard.ru/Helpdesk?auth=~A" token))
 (defun log-error-to-file (e)
   "Записывает сообщение об ошибке в файл errors.log с временной меткой."
   (with-open-file (log-stream "errors.log"
