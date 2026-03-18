@@ -1072,15 +1072,17 @@
                      :want-stream nil
                      :force-binary t)
       (setf (hunchentoot:return-code*) status)
+      ;; Прокидываем только "безопасные" заголовки, избегая Content-* и Transfer-Encoding
       (maphash (lambda (name value)
-                 (setf (hunchentoot:header-out name) value))
+                 (unless (or (string-equal name "content-length")
+                             (string-equal name "content-encoding")
+                             (string-equal name "transfer-encoding")
+                             (string-equal name "connection"))
+                   (setf (hunchentoot:header-out name) value)))
                headers)
-      ;; Запрещаем keep-alive, чтобы Nginx не ждал продолжения
+      ;; Явно запрещаем keep-alive
       (setf (hunchentoot:header-out "Connection") "close")
-      (when (streamp body)
-        (setf body (with-output-to-string (s)
-                     (loop for byte = (read-byte body nil nil)
-                           while byte do (write-byte byte s)))))
+      ;; Возвращаем тело как есть (вектор байтов)
       body)))
 
 
