@@ -1067,23 +1067,32 @@
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("Auth-User" . "post-only"))
+                     :headers `(("REMOTE_USER" . "post-only"))
                      :content content
                      :want-stream nil
                      :force-binary t)
       (setf (hunchentoot:return-code*) status)
-      ;; Прокидываем только "безопасные" заголовки, избегая Content-* и Transfer-Encoding
+      ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
       (maphash (lambda (name value)
-                 (unless (or (string-equal name "content-length")
-                             (string-equal name "content-encoding")
-                             (string-equal name "transfer-encoding")
-                             (string-equal name "connection"))
+                 (unless (member name '("content-length" "transfer-encoding") 
+                                 :test #'string-equal)
                    (setf (hunchentoot:header-out name) value)))
                headers)
-      ;; Явно запрещаем keep-alive
-      (setf (hunchentoot:header-out "Connection") "close")
-      ;; Возвращаем тело как есть (вектор байтов)
-      body)))
+      ;; Если это HTML, заменяем ссылки
+      (let ((content-type (hunchentoot:header-in :content-type)))
+        (if (and (stringp body)
+                 (search "text/html" content-type))
+            (let ((modified-body 
+                    (with-output-to-string (s)
+                      (loop for start = 0 then (+ pos (length "=\"/"))
+                            for pos = (search "=\"/" body :start2 start)
+                            while pos
+                            do (write-string (subseq body start (+ pos 3)) s) ; пишем до "=\""
+                               (write-string "/glpi" s) ; добавляем префикс
+                               (setf start (+ pos 3))
+                            finally (write-string (subseq body start) s))))
+              modified-body)
+            body)))))
 
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
