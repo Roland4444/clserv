@@ -1086,11 +1086,52 @@
       ; теперь result вн
 
 
+; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
+;   (let* ((original-uri (hunchentoot:request-uri*))
+;          (relative-path (subseq original-uri (length "/glpi")))
+;          (target-url (concatenate 'string 
+;                                    "https://glpi.upshepard.ru" 
+;                                    (if (string= relative-path "") "/" relative-path)))
+;          (method (hunchentoot:request-method*))
+;          (content (hunchentoot:raw-post-data :force-binary t)))
+;     (format t "~%>>> GLPI PROXY CALLED with path: ~A -> ~A~%" original-uri target-url)
+;     (force-output)
+;     (multiple-value-bind (body status headers)
+;         (dex:request target-url
+;                      :method method
+;                      :headers `(("REMOTE_USER" . "post-only"))   ; изменил на REMOTE_USER
+;                      :content content
+;                      :want-stream nil
+;                      :force-binary t)
+;       (setf (hunchentoot:return-code*) status)
+;       ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
+;       (maphash (lambda (name value)
+;                  (unless (member (string-downcase name) 
+;                                  '("content-length" "transfer-encoding") 
+;                                  :test #'string=)
+;                    (setf (hunchentoot:header-out name) value)))
+;                headers)
+;       ;; Определяем тип содержимого
+;       (let* ((content-type (gethash "content-type" headers))
+;              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
+;         ;; Отладочный вывод
+;         (format t "    Content-Type: ~A~%" content-type)
+;         (cond
+;           ((and content-type (search "text/html" content-type :test #'char-equal))
+;            (format t "    HTML detected, applying link replacement...~%")
+;            (let ((modified (replace-html-links body-string)))
+;              (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
+;              (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
+;              modified))
+;           (t
+;            (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
+;            body-string))))))
+
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
   (let* ((original-uri (hunchentoot:request-uri*))
          (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
-                                   "https://glpi.upshepard.ru" 
+                                   "http://127.0.0.1:8080" 
                                    (if (string= relative-path "") "/" relative-path)))
          (method (hunchentoot:request-method*))
          (content (hunchentoot:raw-post-data :force-binary t)))
@@ -1099,22 +1140,19 @@
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("REMOTE_USER" . "post-only"))   ; изменил на REMOTE_USER
+                     :headers `(("REMOTE_USER" . "post-only"))
                      :content content
                      :want-stream nil
                      :force-binary t)
       (setf (hunchentoot:return-code*) status)
-      ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
       (maphash (lambda (name value)
                  (unless (member (string-downcase name) 
                                  '("content-length" "transfer-encoding") 
                                  :test #'string=)
                    (setf (hunchentoot:header-out name) value)))
                headers)
-      ;; Определяем тип содержимого
       (let* ((content-type (gethash "content-type" headers))
              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-        ;; Отладочный вывод
         (format t "    Content-Type: ~A~%" content-type)
         (cond
           ((and content-type (search "text/html" content-type :test #'char-equal))
@@ -1126,6 +1164,7 @@
           (t
            (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
            body-string))))))
+
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
       hunchentoot:*dispatch-table*)        
