@@ -1059,41 +1059,45 @@
          (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
                                    "https://glpi.upshepard.ru" 
-                                   relative-path))
+                                   (if (string= relative-path "") "/" relative-path)))
          (method (hunchentoot:request-method*))
          (content (hunchentoot:raw-post-data :force-binary t)))
-    (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" original-uri)
+    (format t "~%>>> GLPI PROXY CALLED with path: ~A -> ~A~%" original-uri target-url)
     (force-output)
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("REMOTE_USER" . "post-only"))
+                     :headers `(("Auth-User" . "post-only"))  ; используем Auth-User, чтобы не конфликтовать
                      :content content
                      :want-stream nil
                      :force-binary t)
       (setf (hunchentoot:return-code*) status)
-      ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
+      ;; Копируем заголовки, кроме Content-Length и Transfer-Encoding
       (maphash (lambda (name value)
-                 (unless (member name '("content-length" "transfer-encoding") 
-                                 :test #'string-equal)
+                 (unless (member (string-downcase name) 
+                                 '("content-length" "transfer-encoding") 
+                                 :test #'string=)
                    (setf (hunchentoot:header-out name) value)))
                headers)
       ;; Если это HTML, заменяем ссылки
-      (let ((content-type (hunchentoot:header-in :content-type)))
+      (let ((content-type (hunchentoot:header-out "Content-Type")))
         (if (and (stringp body)
-                 (search "text/html" content-type))
-            (let ((modified-body 
-                    (with-output-to-string (s)
-                      (loop for start = 0 then (+ pos (length "=\"/"))
-                            for pos = (search "=\"/" body :start2 start)
-                            while pos
-                            do (write-string (subseq body start (+ pos 3)) s) ; пишем до "=\""
-                               (write-string "/glpi" s) ; добавляем префикс
-                               (setf start (+ pos 3))
-                            finally (write-string (subseq body start) s))))
-              modified-body)
+                 content-type
+                 (search "text/html" content-type :test #'char-equal))
+            (replace-html-links body)
             body)))))
 
+(defun replace-html-links (html)
+  "Заменяет в HTML все вхождения href=\"/ и src=\"/ на href=\"/glpi/ и src=\"/glpi/."
+  (let ((result (with-output-to-string (out)
+                  (loop with start = 0
+                        for pos = (search "=\"/" html :start2 start)
+                        while pos
+                        do (write-string (subseq html start (+ pos 3)) out) ; "=\"/"
+                           (write-string "glpi" out) ; добавляем "glpi"
+                           (setf start (+ pos 3))
+                        finally (write-string (subseq html start) out)))))
+    result))
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
       hunchentoot:*dispatch-table*)          
