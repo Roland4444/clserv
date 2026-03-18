@@ -1099,42 +1099,7 @@
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("Auth-User" . "post-only"))  ; используем Auth-User, чтобы не конфликтовать
-                     :content content
-                     :want-stream nil
-                     :force-binary t)
-      (setf (hunchentoot:return-code*) status)
-      ;; Копируем заголовки, кроме Content-Length и Transfer-Encoding
-      (maphash (lambda (name value)
-                 (unless (member (string-downcase name) 
-                                 '("content-length" "transfer-encoding") 
-                                 :test #'string=)
-                   (setf (hunchentoot:header-out name) value)))
-               headers)
-      ;; Если это HTML, заменяем ссылки
-      (let ((content-type (hunchentoot:header-out "Content-Type")))
-        (if (and (stringp body)
-                 content-type
-                 (search "text/html" content-type :test #'char-equal))
-            (replace-html-links body)
-            body)))))
-
-
-
-(hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-  (let* ((original-uri (hunchentoot:request-uri*))
-         (relative-path (subseq original-uri (length "/glpi")))
-         (target-url (concatenate 'string 
-                                   "https://glpi.upshepard.ru" 
-                                   (if (string= relative-path "") "/" relative-path)))
-         (method (hunchentoot:request-method*))
-         (content (hunchentoot:raw-post-data :force-binary t)))
-    (format t "~%>>> GLPI PROXY CALLED with path: ~A -> ~A~%" original-uri target-url)
-    (force-output)
-    (multiple-value-bind (body status headers)
-        (dex:request target-url
-                     :method method
-                     :headers `(("Auth-User" . "post-only"))
+                     :headers `(("REMOTE_USER" . "post-only"))   ; изменил на REMOTE_USER
                      :content content
                      :want-stream nil
                      :force-binary t)
