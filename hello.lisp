@@ -15,7 +15,7 @@
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
-  #:test-compute-deadline #:testExtractToken))
+  #:test-compute-deadline #:testExtractToken  #:test-replace-html-links))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
 
@@ -256,18 +256,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;REVERCE PROXY REQUEST;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; (defun proxy-to-glpi (login)
+;   "Выполняет GET-запрос к GLPI Helpdesk с заголовком REMOTE_USER и возвращает ответ."
+;   (let* ((url "https://glpi.upshepard.ru/Helpdesk")
+;          (headers `(("REMOTE_USER" . ,login))))
+;     (multiple-value-bind (body status headers)
+;         (dex:get url :headers headers :want-stream t) ; :want-stream, чтобы не читать всё тело, если оно большое
+;       (setf (hunchentoot:return-code*) status)
+;       ;; Прокидываем все заголовки ответа (кроме тех, что могут помешать)
+;       (loop for (name . value) in headers
+;             do (setf (hunchentoot:header-out name) value))
+;       ;; Возвращаем тело как есть
+
+
 (defun proxy-to-glpi (login)
-  "Выполняет GET-запрос к GLPI Helpdesk с заголовком REMOTE_USER и возвращает ответ."
   (let* ((url "https://glpi.upshepard.ru/Helpdesk")
          (headers `(("REMOTE_USER" . ,login))))
     (multiple-value-bind (body status headers)
-        (dex:get url :headers headers :want-stream t) ; :want-stream, чтобы не читать всё тело, если оно большое
+        (dex:get url :headers headers :want-stream t)
       (setf (hunchentoot:return-code*) status)
-      ;; Прокидываем все заголовки ответа (кроме тех, что могут помешать)
       (loop for (name . value) in headers
             do (setf (hunchentoot:header-out name) value))
-      ;; Возвращаем тело как есть
-      (hunchentoot:raw-post-data :force-binary t :want-stream t body))))
+      body)))   ; возвращаем поток напрямую
+
+
 
 ;; Хендлер, который принимает логин из параметра и вызывает прокси
 (hunchentoot:define-easy-handler (go-to-glpi :uri "/go-to-glpi") (login)
@@ -1053,6 +1065,26 @@
         (format t "~%Ошибка HTTP при получении токена GLPI: ~A~%" e)
         (error e)))))
 
+(defun replace-all (string part replacement)
+  (with-output-to-string (out)
+    (loop with part-len = (length part)
+          for start = 0 then (+ pos part-len)
+          for pos = (search part string :start2 start)
+          do (write-string string out :start start :end (or pos (length string)))
+          when pos do (write-string replacement out)
+          while pos)))
+
+
+(defun replace-html-links (html)
+  "Заменяет в HTML все вхождения =\"/, ='/, url('/, url(\"/ на соответствующие с /glpi/."
+  (let ((result html))
+    (setf result (replace-all result "=\"/" "=\"/glpi/"))
+    (setf result (replace-all result "='/" "='/glpi/"))
+    (setf result (replace-all result "url('/" "url('/glpi/"))
+    (setf result (replace-all result "url(\"/" "url(\"/glpi/"))
+    result))
+      ; теперь result вн
+
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
   (let* ((original-uri (hunchentoot:request-uri*))
@@ -1087,20 +1119,86 @@
             (replace-html-links body)
             body)))))
 
-(defun replace-html-links (html)
-  "Заменяет в HTML все вхождения href=\"/ и src=\"/ на href=\"/glpi/ и src=\"/glpi/."
-  (let ((result (with-output-to-string (out)
-                  (loop with start = 0
-                        for pos = (search "=\"/" html :start2 start)
-                        while pos
-                        do (write-string (subseq html start (+ pos 3)) out) ; "=\"/"
-                           (write-string "glpi" out) ; добавляем "glpi"
-                           (setf start (+ pos 3))
-                        finally (write-string (subseq html start) out)))))
-    result))
+
+
+(hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
+  (let* ((original-uri (hunchentoot:request-uri*))
+         (relative-path (subseq original-uri (length "/glpi")))
+         (target-url (concatenate 'string 
+                                   "https://glpi.upshepard.ru" 
+                                   (if (string= relative-path "") "/" relative-path)))
+         (method (hunchentoot:request-method*))
+         (content (hunchentoot:raw-post-data :force-binary t)))
+    (format t "~%>>> GLPI PROXY CALLED with path: ~A -> ~A~%" original-uri target-url)
+    (force-output)
+    (multiple-value-bind (body status headers)
+        (dex:request target-url
+                     :method method
+                     :headers `(("Auth-User" . "post-only"))
+                     :content content
+                     :want-stream nil
+                     :force-binary t)
+      (setf (hunchentoot:return-code*) status)
+      ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
+      (maphash (lambda (name value)
+                 (unless (member (string-downcase name) 
+                                 '("content-length" "transfer-encoding") 
+                                 :test #'string=)
+                   (setf (hunchentoot:header-out name) value)))
+               headers)
+      ;; Определяем тип содержимого
+      (let* ((content-type (gethash "content-type" headers))
+             (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
+        ;; Отладочный вывод
+        (format t "    Content-Type: ~A~%" content-type)
+        (cond
+          ((and content-type (search "text/html" content-type :test #'char-equal))
+           (format t "    HTML detected, applying link replacement...~%")
+           (let ((modified (replace-html-links body-string)))
+             (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
+             (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
+             modified))
+          (t
+           (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
+           body-string))))))
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
-      hunchentoot:*dispatch-table*)          
+      hunchentoot:*dispatch-table*)        
+
+
+(defun test-replace-html-links ()
+  "Тестирует функцию replace-html-links на различных вариантах ссылок."
+  (let ((test-html
+         "<html>
+<head>
+  <link rel=\"stylesheet\" href=\"/lib/base.min.css\">
+  <script src=\"/js/script.js\"></script>
+</head>
+<body>
+  <a href='/some/page?param=1'>Link with single quotes</a>
+  <img src='/images/pic.jpg' alt='pic'>
+  <div style=\"background: url('/img/bg.png')\"></div>
+  <a href=\"/other/page\">Another link</a>
+</body>
+</html>")
+        (expected-html
+         "<html>
+<head>
+  <link rel=\"stylesheet\" href=\"/glpi/lib/base.min.css\">
+  <script src=\"/glpi/js/script.js\"></script>
+</head>
+<body>
+  <a href='/glpi/some/page?param=1'>Link with single quotes</a>
+  <img src='/glpi/images/pic.jpg' alt='pic'>
+  <div style=\"background: url('/glpi/img/bg.png')\"></div>
+  <a href=\"/glpi/other/page\">Another link</a>
+</body>
+</html>"))
+    (let ((result (replace-html-links test-html)))
+      (assert (string= result expected-html) nil
+              "Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" expected-html result)
+      (format t "Тест пройден.~%")
+      t)))        
 
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
