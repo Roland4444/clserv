@@ -1055,6 +1055,8 @@
 
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
+   (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
+  (force-output)
   (let* ((original-uri (hunchentoot:request-uri*))
          (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
@@ -1074,6 +1076,8 @@
       (if (streamp body)
           (hunchentoot:raw-post-data :want-stream t :force-binary t body)
           body))))
+(push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
+      hunchentoot:*dispatch-table*)          
 
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
