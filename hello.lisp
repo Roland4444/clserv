@@ -1054,6 +1054,27 @@
         (error e)))))
 
 
+(hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
+  (let* ((original-uri (hunchentoot:request-uri*))
+         (relative-path (subseq original-uri (length "/glpi")))
+         (target-url (concatenate 'string 
+                                   "https://glpi.upshepard.ru" 
+                                   relative-path))
+         (method (hunchentoot:request-method*))
+         (content (hunchentoot:raw-post-data :force-binary t)))
+    (multiple-value-bind (body status headers)
+        (dex:request target-url
+                     :method method
+                     :headers `(("REMOTE_USER" . "post-only"))
+                     :content content
+                     :want-stream t)
+      (setf (hunchentoot:return-code*) status)
+      (loop for (name . value) in headers
+            do (setf (hunchentoot:header-out name) value))
+      (if (streamp body)
+          (hunchentoot:raw-post-data :want-stream t :force-binary t body)
+          body))))
+
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
