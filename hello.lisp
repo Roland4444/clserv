@@ -1171,12 +1171,12 @@
       (format t "    Response headers: ~S~%" headers)
 
       ;; Обработка редиректов (добавляем префикс /glpi к локальным Location)
-      (when (and (>= status 300) (< status 400))
-        (let ((location (gethash "location" headers)))
-          (when (and location (char= (aref location 0) #\/))
-            (setf (gethash "location" headers)
-                  (concatenate 'string "/glpi" location))
-            (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
+      ; (when (and (>= status 300) (< status 400))
+      ;   (let ((location (gethash "location" headers)))
+      ;     (when (and location (char= (aref location 0) #\/))
+      ;       (setf (gethash "location" headers)
+      ;             (concatenate 'string "/glpi" location))
+      ;       (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
 
       (setf (hunchentoot:return-code*) status)
       ;; Прокидываем заголовки ответа клиенту (кроме служебных)
