@@ -1133,6 +1133,8 @@
 )
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
+(format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
+(force-output)
   (let* ((user-login (get-glpi-username))
          (original-uri (hunchentoot:request-uri*))
          (relative-path (subseq original-uri (length "/glpi")))
