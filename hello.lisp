@@ -1146,6 +1146,8 @@
     (format t "~%>>> GLPI PROXY CALLED for user: ~A, path: ~A~%" user-login original-uri)
     (force-output)
     (multiple-value-bind (body status headers)
+    (format t "    target-url: ~A~%" target-url)
+
         (dex:request target-url
                      :method method
                      :headers `(("X-Forwarded-User" . ,user-login))
