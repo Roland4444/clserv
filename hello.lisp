@@ -1133,7 +1133,7 @@
 )
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-  (let* ((user-login (get-glpi-username))   ; должно быть "jopa" для теста
+  (let* ((user-login (get-glpi-username))
          (original-uri (hunchentoot:request-uri*))
          (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
@@ -1141,7 +1141,7 @@
                                    relative-path))
          (method (hunchentoot:request-method*))
          (content (hunchentoot:raw-post-data :force-binary t))
-         ;; Пробрасываем ВСЕ заголовки от клиента
+         ;; Пробрасываем все входящие заголовки
          (in-headers (hunchentoot:headers-in*))
          (forward-headers
            (loop for (name . value) in in-headers
@@ -1151,7 +1151,6 @@
     ;; Устанавливаем правильный Host для Apache
     (push (cons "Host" "glpi.romach.space") forward-headers)
 
-    ;; Отладка
     (format t "~%>>> GLPI PROXY: ~A -> ~A~%" original-uri target-url)
     (format t "    Forward headers: ~S~%" forward-headers)
     (force-output)
@@ -1162,13 +1161,13 @@
                      :headers forward-headers
                      :content content
                      :want-stream nil
-                     :force-binary t)
+                     :force-binary t
+                     :accept-encoding nil)   ; отключаем сжатие
       
-      ;; Отладка ответа
       (format t "<<< Response status: ~A~%" status)
       (format t "    Response headers: ~S~%" headers)
 
-      ;; Обработка редиректов (добавляем префикс /glpi к локальным Location)
+      ;; Обработка редиректов
       (when (and (>= status 300) (< status 400))
         (let ((location (gethash "location" headers)))
           (when (and location (char= (aref location 0) #\/))
@@ -1177,7 +1176,7 @@
             (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
 
       (setf (hunchentoot:return-code*) status)
-      ;; Прокидываем заголовки ответа клиенту
+      ;; Прокидываем заголовки ответа клиенту (кроме служебных)
       (maphash (lambda (name value)
                  (unless (member (string-downcase name) 
                                  '("content-length" "transfer-encoding") 
@@ -1185,7 +1184,7 @@
                    (setf (hunchentoot:header-out name) value)))
                headers)
 
-      ;; Обработка HTML для замены ссылок (если нужна)
+      ;; Обработка HTML для замены ссылок
       (let* ((content-type (gethash "content-type" headers))
              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
         (if (and content-type (search "text/html" content-type :test #'char-equal))
