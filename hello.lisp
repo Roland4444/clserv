@@ -1132,46 +1132,97 @@
 (or (hunchentoot:session-value :glpi-user) "jopa");;"post-only")
 )
 
+
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-  (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
-  (force-output)
-  (let* ((user-login (get-glpi-username))
+  (let* ((user-login (get-glpi-username))   ; должно браться из сессии
          (original-uri (hunchentoot:request-uri*))
          (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
                                    "http://127.0.0.1:8080" 
                                    (if (string= relative-path "") "/" relative-path)))
          (method (hunchentoot:request-method*))
-         (content (hunchentoot:raw-post-data :force-binary t)))
-    (format t "    target-url: ~A~%" target-url)
+         (content (hunchentoot:raw-post-data :force-binary t))
+         ;; Пробрасываем все входящие заголовки
+         (in-headers (hunchentoot:headers-in*))
+         (forward-headers
+           (loop for (name . value) in in-headers
+                 collect (cons name value))))
+    ;; Добавляем заголовок аутентификации (используем X-Forwarded-User,
+    ;; так как nginx-тест показал, что Apache его принимает)
+    (push (cons "X-Forwarded-User" user-login) forward-headers)
+    ;; Устанавливаем правильный Host для Apache
+    (push (cons "Host" "glpi.romach.space") forward-headers)
+
+    (format t "~%>>> GLPI PROXY: ~A -> ~A~%" original-uri target-url)
+    (format t "    Forward headers: ~S~%" forward-headers)
     (force-output)
+
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("X-Forwarded-User" . ,user-login)
-                                ("Host" . "glpi.romach.space"))  ; добавляем Host
+                     :headers forward-headers
                      :content content
                      :want-stream nil
                      :force-binary t)
       (setf (hunchentoot:return-code*) status)
+      ;; Прокидываем заголовки ответа клиенту
       (maphash (lambda (name value)
                  (unless (member (string-downcase name) 
                                  '("content-length" "transfer-encoding") 
                                  :test #'string=)
                    (setf (hunchentoot:header-out name) value)))
                headers)
+
+      ;; Обработка HTML для замены ссылок (если нужна)
       (let* ((content-type (gethash "content-type" headers))
              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-        (cond
-          ((and content-type (search "text/html" content-type :test #'char-equal))
-           (format t "    HTML detected, applying link replacement...~%")
-           (let ((modified (replace-html-links body-string)))
-             (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
-             (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
-             modified))
-          (t
-           (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
-           body-string))))))
+        (if (and content-type (search "text/html" content-type :test #'char-equal))
+            (let ((modified (replace-html-links body-string)))
+              (setf (hunchentoot:content-length*) 
+                    (length (babel:string-to-octets modified :encoding :utf-8)))
+              modified)
+            body-string)))))
+
+; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
+;   (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
+;   (force-output)
+;   (let* ((user-login (get-glpi-username))
+;          (original-uri (hunchentoot:request-uri*))
+;          (relative-path (subseq original-uri (length "/glpi")))
+;          (target-url (concatenate 'string 
+;                                    "http://127.0.0.1:8080" 
+;                                    (if (string= relative-path "") "/" relative-path)))
+;          (method (hunchentoot:request-method*))
+;          (content (hunchentoot:raw-post-data :force-binary t)))
+;     (format t "    target-url: ~A~%" target-url)
+;     (force-output)
+;     (multiple-value-bind (body status headers)
+;         (dex:request target-url
+;                      :method method
+;                      :headers `(("X-Forwarded-User" . ,user-login)
+;                                 ("Host" . "glpi.romach.space"))  ; добавляем Host
+;                      :content content
+;                      :want-stream nil
+;                      :force-binary t)
+;       (setf (hunchentoot:return-code*) status)
+;       (maphash (lambda (name value)
+;                  (unless (member (string-downcase name) 
+;                                  '("content-length" "transfer-encoding") 
+;                                  :test #'string=)
+;                    (setf (hunchentoot:header-out name) value)))
+;                headers)
+;       (let* ((content-type (gethash "content-type" headers))
+;              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
+;         (cond
+;           ((and content-type (search "text/html" content-type :test #'char-equal))
+;            (format t "    HTML detected, applying link replacement...~%")
+;            (let ((modified (replace-html-links body-string)))
+;              (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
+;              (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
+;              modified))
+;           (t
+;            (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
+;            body-string))))))
 
 
  

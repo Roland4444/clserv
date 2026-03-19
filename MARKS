@@ -199,3 +199,37 @@ https://relits.bitrix24.ru/rest/336/xe4qtbm1c6bhi195/
   ("providers" . 271) ("cameras" . 271) ("mobile" . 271))
  (:GLPI-REQUESTER ("orgtech" . 2) ("software" . 2) ("computers" . 2) ("network" . 2) ("meters" . 2) ("providers" .>
   ("cameras" . 2) ("mobile" . 2)))
+
+
+
+
+Array
+(
+    [User-Agent] => Dexador/0.9.15 (SBCL 2.2.9.debian); Linux; 6.17.0-1008-azure
+    [Host] => glpi.romach.space
+    [Accept] => */*
+    [Content-Length] => 0
+    [X-Forwarded-User] => jopa
+)
+
+Array
+(
+    [Host] => glpi.romach.space
+    [X-Real-IP] => 176.100.120.154
+    [X-Forwarded-For] => 176.100.120.154
+    [X-Forwarded-Proto] => https
+    [X-Forwarded-User] => jopa
+    [Connection] => close
+    [sec-ch-ua] => "Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"
+    [sec-ch-ua-mobile] => ?0
+    [sec-ch-ua-platform] => "Windows"
+    [Upgrade-Insecure-Requests] => 1
+    [User-Agent] => Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36
+    [Accept] => text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+    [Sec-Fetch-Site] => none
+    [Sec-Fetch-Mode] => navigate
+    [Sec-Fetch-User] => ?1
+    [Sec-Fetch-Dest] => document
+    [Accept-Encoding] => gzip, deflate, br, zstd
+    [Accept-Language] => ru-RU,ru;q=0.9
+)
