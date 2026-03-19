@@ -1131,7 +1131,6 @@
 (defun get-glpi-username()
 (or (hunchentoot:session-value :glpi-user) "jopa");;"post-only")
 )
-
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
   (let* ((user-login (get-glpi-username))
          (original-uri (hunchentoot:request-uri*))
@@ -1146,6 +1145,11 @@
          (forward-headers
            (loop for (name . value) in in-headers
                  collect (cons name value))))
+    ;; Удаляем заголовок Accept-Encoding, чтобы Apache не сжимал ответ
+    (setf forward-headers
+          (remove-if (lambda (pair)
+                       (string-equal (car pair) "accept-encoding"))
+                     forward-headers))
     ;; Добавляем заголовок аутентификации REMOTE_USER
     (push (cons "REMOTE_USER" user-login) forward-headers)
     ;; Устанавливаем правильный Host для Apache
@@ -1161,13 +1165,12 @@
                      :headers forward-headers
                      :content content
                      :want-stream nil
-                     :force-binary t
-                     :accept-encoding nil)   ; отключаем сжатие
+                     :force-binary t)   ; параметр :accept-encoding удалён
       
       (format t "<<< Response status: ~A~%" status)
       (format t "    Response headers: ~S~%" headers)
 
-      ;; Обработка редиректов
+      ;; Обработка редиректов (добавляем префикс /glpi к локальным Location)
       (when (and (>= status 300) (< status 400))
         (let ((location (gethash "location" headers)))
           (when (and location (char= (aref location 0) #\/))
