@@ -1148,19 +1148,18 @@
     (multiple-value-bind (body status headers)
         (dex:request target-url
                      :method method
-                     :headers `(("X-Forwarded-User" . ,user-login))
+                     :headers `(("X-Forwarded-User" . ,user-login)
+                                ("Host" . "glpi.romach.space"))  ; добавляем Host
                      :content content
                      :want-stream nil
                      :force-binary t)
       (setf (hunchentoot:return-code*) status)
-      ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
       (maphash (lambda (name value)
                  (unless (member (string-downcase name) 
                                  '("content-length" "transfer-encoding") 
                                  :test #'string=)
                    (setf (hunchentoot:header-out name) value)))
                headers)
-      ;; Определяем тип содержимого и обрабатываем HTML
       (let* ((content-type (gethash "content-type" headers))
              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
         (cond
