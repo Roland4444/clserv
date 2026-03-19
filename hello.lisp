@@ -1493,9 +1493,8 @@
 (defun main ()
   ;; Загружаем конфигурацию (если файла нет, создаётся с настройками по умолчанию)
   (load-config)
-  (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
-  (setf hunchentoot:*session-gc-frequency* 60)
-  (setf hunchentoot:*use-sessions* t)
+(setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
+(setf hunchentoot:*session-gc-frequency* 60)
   ;; Запускаем фоновый поток для обработки заявок
 (bt:make-thread
   (lambda ()
