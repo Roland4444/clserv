@@ -1266,7 +1266,7 @@
 ;            body-string))))))
 
 
-(push (hunchentoot:create-prefix-dispatcher "/glpi/" 'glpi-proxy)
+(push (hunchentoot:create-prefix-dispatcher "/glpi" 'glpi-proxy)
       hunchentoot:*dispatch-table*)        
 
 
