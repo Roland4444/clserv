@@ -1132,68 +1132,66 @@
 (or (hunchentoot:session-value :glpi-user) "jopa");;"post-only")
 )
 
-
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-  (let* ((user-login (get-glpi-username))   ; пока "jopa", потом из сессии
+  (let* ((user-login (get-glpi-username))
          (original-uri (hunchentoot:request-uri*))
-         (relative-path (subseq original-uri (length "/glpi"))) ; всё после /glpi
+         (relative-path (subseq original-uri (length "/glpi")))
          (target-url (concatenate 'string 
                                    "http://127.0.0.1:8080" 
                                    relative-path))
          (method (hunchentoot:request-method*))
-         (content (hunchentoot:raw-post-data :force-binary t))
-         ;; Пробрасываем ВСЕ заголовки от клиента
-         (in-headers (hunchentoot:headers-in*))
-         (forward-headers
-           (loop for (name . value) in in-headers
-                 collect (cons name value))))
-    ;; Добавляем свои заголовки
-    (push (cons "X-Forwarded-User" user-login) forward-headers)
-    (push (cons "Host" "glpi.romach.space") forward-headers)
+         (content (hunchentoot:raw-post-data :force-binary t)))
+    
+    ;; --- Вариант 2: минимальный набор (как в nginx) ---
+    (let ((forward-headers `(("Host" . "glpi.romach.space")
+                             ("X-Forwarded-User" . ,user-login)
+                             ("X-Real-IP" . "127.0.0.1")
+                             ("X-Forwarded-For" . "127.0.0.1")
+                             ("X-Forwarded-Proto" . "https"))))
 
-    ;; Отладка
-    (format t "~%>>> GLPI PROXY: ~A -> ~A~%" original-uri target-url)
-    (format t "    Forward headers: ~S~%" forward-headers)
-    (force-output)
+      ;; Отладка
+      (format t "~%>>> GLPI PROXY: ~A -> ~A~%" original-uri target-url)
+      (format t "    Forward headers: ~S~%" forward-headers)
+      (force-output)
 
-    ;; Выполняем запрос к Apache
-    (multiple-value-bind (body status headers)
-        (dex:request target-url
-                     :method method
-                     :headers forward-headers
-                     :content content
-                     :want-stream nil
-                     :force-binary t)
-      
-      ;; Обработка редиректов (3xx)
-      (when (and (>= status 300) (< status 400))
-        (let ((location (gethash "location" headers)))
-          (when (and location (char= (aref location 0) #\/)) ; локальный путь
-            ;; Добавляем префикс /glpi
-            (setf (gethash "location" headers)
-                  (concatenate 'string "/glpi" location))
-            (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
+      (multiple-value-bind (body status headers)
+          (dex:request target-url
+                       :method method
+                       :headers forward-headers
+                       :content content
+                       :want-stream nil
+                       :force-binary t)
+        
+        ;; Отладка ответа
+        (format t "<<< Response status: ~A~%" status)
+        (format t "    Response headers: ~S~%" headers)
 
-      ;; Устанавливаем код ответа
-      (setf (hunchentoot:return-code*) status)
+        ;; Обработка редиректов (добавляем префикс /glpi к локальным Location)
+        (when (and (>= status 300) (< status 400))
+          (let ((location (gethash "location" headers)))
+            (when (and location (char= (aref location 0) #\/))
+              (setf (gethash "location" headers)
+                    (concatenate 'string "/glpi" location))
+              (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
 
-      ;; Прокидываем заголовки ответа клиенту (кроме служебных)
-      (maphash (lambda (name value)
-                 (unless (member (string-downcase name) 
-                                 '("content-length" "transfer-encoding") 
-                                 :test #'string=)
-                   (setf (hunchentoot:header-out name) value)))
-               headers)
+        (setf (hunchentoot:return-code*) status)
+        ;; Прокидываем заголовки ответа клиенту
+        (maphash (lambda (name value)
+                   (unless (member (string-downcase name) 
+                                   '("content-length" "transfer-encoding") 
+                                   :test #'string=)
+                     (setf (hunchentoot:header-out name) value)))
+                 headers)
 
-      ;; Обработка HTML (замена ссылок)
-      (let* ((content-type (gethash "content-type" headers))
-             (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-        (if (and content-type (search "text/html" content-type :test #'char-equal))
-            (let ((modified (replace-html-links body-string)))
-              (setf (hunchentoot:content-length*) 
-                    (length (babel:string-to-octets modified :encoding :utf-8)))
-              modified)
-            body-string)))))
+        ;; Обработка HTML
+        (let* ((content-type (gethash "content-type" headers))
+               (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
+          (if (and content-type (search "text/html" content-type :test #'char-equal))
+              (let ((modified (replace-html-links body-string)))
+                (setf (hunchentoot:content-length*) 
+                      (length (babel:string-to-octets modified :encoding :utf-8)))
+                modified)
+              body-string))))))
 
 ; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
 ;   (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
@@ -1495,7 +1493,9 @@
 (defun main ()
   ;; Загружаем конфигурацию (если файла нет, создаётся с настройками по умолчанию)
   (load-config)
-  
+  (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
+  (setf hunchentoot:*session-gc-frequency* 60)
+  (setf hunchentoot:*use-sessions* t)
   ;; Запускаем фоновый поток для обработки заявок
 (bt:make-thread
   (lambda ()
