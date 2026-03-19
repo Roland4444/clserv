@@ -1151,7 +1151,7 @@
                        (string-equal (car pair) "accept-encoding"))
                      forward-headers))
     ;; Добавляем заголовок аутентификации REMOTE_USER
-    (push (cons " X-Forwarded-User" user-login) forward-headers)
+    (push (cons "X-Forwarded-User" user-login) forward-headers)
     ;; Устанавливаем правильный Host для Apache
     (push (cons "Host" "glpi.romach.space") forward-headers)
 
