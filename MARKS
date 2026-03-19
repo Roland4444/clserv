@@ -114,7 +114,7 @@ ATTACH FILE TO TASKKKKKKK
 $ curl -X POST \
   "https://b24-e8jgcd.bitrix24.ru/rest/1/h1mpxuqieyy84uxf/tasks.task.update" \
   -H "Content-Type: application/json" \
-  -d '{
+    -d '{
     "taskId": 52,
     "fields": {
       "UF_TASK_WEBDAV_FILES": ["n116"]
@@ -233,3 +233,6 @@ Array
     [Accept-Encoding] => gzip, deflate, br, zstd
     [Accept-Language] => ru-RU,ru;q=0.9
 )
+
+
+curl -L -v -H "X-Forwarded-User: jopa" -H "X-Real-IP: 127.0.0.1"  -H "X-Forwarded-For: 127.0.0.1" -H "X-Forwarded-Proto: https"  -H "Host: glpi.romach.space"  -c 1.txt -b 1.txt      https://glpi.romach.space/
