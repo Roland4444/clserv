@@ -1140,20 +1140,21 @@
                                    relative-path))
          (method (hunchentoot:request-method*))
          (content (hunchentoot:raw-post-data :force-binary t))
-         ;; Пробрасываем все входящие заголовки
-         (in-headers (hunchentoot:headers-in*))
-         (forward-headers
-           (loop for (name . value) in in-headers
-                 collect (cons name value))))
-    ;; Удаляем заголовок Accept-Encoding, чтобы Apache не сжимал ответ
-    (setf forward-headers
-          (remove-if (lambda (pair)
-                       (string-equal (car pair) "accept-encoding"))
-                     forward-headers))
-    ;; Добавляем заголовок аутентификации REMOTE_USER
-    (push (cons "X-Forwarded-User" user-login) forward-headers)   ; <-- исправлено
-    ;; Устанавливаем правильный Host для Apache
-    (push (cons "Host" "glpi.romach.space") forward-headers)
+         ;; Минимальный набор заголовков
+         (forward-headers `(("Host" . "glpi.romach.space")
+                            ("X-Real-IP" . "127.0.0.1")
+                            ("X-Forwarded-For" . "127.0.0.1")
+                            ("X-Forwarded-Proto" . "https")
+                            ("X-Forwarded-User" . ,user-login))))
+    ;; Добавляем Cookie, если есть
+    (let ((cookie (hunchentoot:header-in* "cookie")))
+      (when cookie
+        (push (cons "Cookie" cookie) forward-headers)
+        (format t "    Cookie: ~A~%" cookie)))
+    ;; Добавляем User-Agent
+    (let ((ua (hunchentoot:header-in* "user-agent")))
+      (when ua
+        (push (cons "User-Agent" ua) forward-headers)))
 
     (format t "~%>>> GLPI PROXY: ~A -> ~A~%" original-uri target-url)
     (format t "    Forward headers: ~S~%" forward-headers)
@@ -1165,37 +1166,25 @@
                      :headers forward-headers
                      :content content
                      :want-stream nil
-                     :force-binary t)   ; параметр :accept-encoding удалён
-      
+                     :force-binary t)
       (format t "<<< Response status: ~A~%" status)
       (format t "    Response headers: ~S~%" headers)
-
-      ;; Обработка редиректов (добавляем префикс /glpi к локальным Location)
-      ; (when (and (>= status 300) (< status 400))
-      ;   (let ((location (gethash "location" headers)))
-      ;     (when (and location (char= (aref location 0) #\/))
-      ;       (setf (gethash "location" headers)
-      ;             (concatenate 'string "/glpi" location))
-      ;       (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
-
+      ;; Обработка редиректов
+      (when (and (>= status 300) (< status 400))
+        (let ((location (gethash "location" headers)))
+          (when (and location (char= (aref location 0) #\/))
+            (setf (gethash "location" headers)
+                  (concatenate 'string "/glpi" location))
+            (format t "    Rewrote Location: ~A~%" (gethash "location" headers)))))
       (setf (hunchentoot:return-code*) status)
-      ;; Прокидываем заголовки ответа клиенту (кроме служебных)
       (maphash (lambda (name value)
                  (unless (member (string-downcase name) 
                                  '("content-length" "transfer-encoding") 
                                  :test #'string=)
                    (setf (hunchentoot:header-out name) value)))
                headers)
-
-      ;; Обработка HTML для замены ссылок
-      (let* ((content-type (gethash "content-type" headers))
-             (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-        (if (and content-type (search "text/html" content-type :test #'char-equal))
-            (let ((modified (replace-html-links body-string)))
-              (setf (hunchentoot:content-length*) 
-                    (length (babel:string-to-octets modified :encoding :utf-8)))
-              modified)
-            body-string)))))
+      ;; Возвращаем тело
+      (if (stringp body) body (babel:octets-to-string body :encoding :utf-8)))))
 
 ; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
 ;   (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
