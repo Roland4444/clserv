@@ -1129,7 +1129,7 @@
 
 
 (defun get-glpi-username()
-(or (hunchentoot:session-value :glpi-user) "post-only")
+(or (hunchentoot:session-value :glpi-user) "jopa");;"post-only")
 )
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
