@@ -1134,12 +1134,12 @@
 
 
 (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-  (let* ((user-login (get-glpi-username))   ; должно браться из сессии
+(let* ((user-login (get-glpi-username))
          (original-uri (hunchentoot:request-uri*))
-         (relative-path (subseq original-uri (length "/glpi")))
+         (relative-path (subseq original-uri (length "/glpi"))) ; важно: без слеша!
          (target-url (concatenate 'string 
                                    "http://127.0.0.1:8080" 
-                                   (if (string= relative-path "") "/" relative-path)))
+                                   relative-path))
          (method (hunchentoot:request-method*))
          (content (hunchentoot:raw-post-data :force-binary t))
          ;; Пробрасываем все входящие заголовки
