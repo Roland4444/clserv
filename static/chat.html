@@ -76,7 +76,7 @@
 
                         var user = result.data();
                         console.log('Пользователь:', user);
-                        var login = user.LOGIN || user.EMAIL || user.ID;
+                        var login =  user.EMAIL // user.LOGIN || user.EMAIL || user.ID;
                         if (!login) {
                             console.error('Не удалось определить логин');
                             useFallbackUser();
