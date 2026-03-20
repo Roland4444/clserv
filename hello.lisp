@@ -15,7 +15,8 @@
   (:use :cl :hunchentoot :fuuid)
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
-  #:test-compute-deadline #:testExtractToken  #:test-replace-html-links))
+  #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
+  #:test-headers-simple))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
 
@@ -243,6 +244,9 @@
   (if content
       (progn (write-links content) "Link updated successfully.")
       (progn (setf (hunchentoot:return-code*) 400) "Missing content parameter")))
+
+(hunchentoot:define-easy-handler (google-redirect :uri "/google") ()
+  (hunchentoot:redirect "https://google.com"))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") ()
   (setf (hunchentoot:content-type*) "text/html")
@@ -1306,6 +1310,14 @@
               "Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" expected-html result)
       (format t "Тест пройден.~%")
       t)))        
+
+
+(defun test-headers-simple()
+(format t "~A~%"  (dex:get "https://romach.space/test"
+                      :headers '(("secretuser" . "my-secret-value")
+                                 ("X-Forwarded-User" . "super")
+                      ))))
+
 
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()

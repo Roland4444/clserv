@@ -236,3 +236,67 @@ Array
 
 
 curl -L -v -H "X-Forwarded-User: jopa" -H "X-Real-IP: 127.0.0.1"  -H "X-Forwarded-For: 127.0.0.1" -H "X-Forwarded-Proto: https"  -H "Host: glpi.romach.space"  -c 1.txt -b 1.txt      https://glpi.romach.space/
+
+
+
+
+location /test {
+    content_by_lua_block {
+        local headers = ngx.req.get_headers()
+        local secret = headers["secret_user"] or "(not provided)"
+        ngx.header.content_type = "text/html"
+        ngx.say([[
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secret User Header</title>
+</head>
+<body>
+    <h1>Значение заголовка secret_user</h1>
+    <p><strong>]] .. secret .. [[</strong></p>
+    <p>Заголовок был получен и отображён.</p>
+</body>
+</html>
+]])
+    }
+}
+
+
+curl -H "secretuser: my-secret-value" -H "X-Forwarded-User: super" https://romach.space/test
+<!DOCTYPE html>
+        <html>
+
+        <head><title>CAD</title></heaf>
+        <body>SECRET USER::
+        <strong>my-secret-value</strong><br>USER::<strong>super</strong>
+
+
+
+        </body>
+
+        </html>
+
+
+
+location /test {
+    content_by_lua_block {
+        local headers = ngx.req.get_headers()
+        local secret = headers["secretuser"] or "(not provided)"
+        local user   = headers["X-Forwarded-User"] or "anonymous"
+        ngx.header.content_type = "text/html; charset=utf-8"
+        ngx.say([[<!DOCTYPE html>
+        <html>
+
+        <head><title>CAD</title></heaf>
+        <body>SECRET USER::
+        <strong>]] .. secret .. [[</strong><br>USER::<strong>]] .. user .. [[</strong>
+
+
+
+        </body>
+
+        </html>
+
+        ]])
+    }
+}
