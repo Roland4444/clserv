@@ -10,6 +10,19 @@ server {
 
     client_max_body_size 50M;
 
+location / {
+    content_by_lua_block {
+        ngx.header.content_type = "text/plain"
+        local user = ngx.var.arg_user
+        if user and user ~= "" then
+            ngx.say("User parameter from root: " .. user)
+        else
+            ngx.say("No user parameter from root")
+        end
+    }
+}
+
+
     # Корень сайта (статический index.html для / и /chat)
 #        location / {
 #        proxy_pass http://127.0.0.1:11111;
