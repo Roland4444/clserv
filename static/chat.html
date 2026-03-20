@@ -27,14 +27,25 @@
                 }
             }, BITRIX_TIMEOUT);
 
+            // function setCookie(name, value, days = 1) {
+            //     const expires = new Date(Date.now() + days * 864e5).toUTCString();
+            //     document.cookie = name + '=' + encodeURIComponent(value) +
+            //         '; expires=' + expires +
+            //         '; path=/' +
+            //         '; domain=.romach.space' +
+            //         '; Secure';
+            // }
+
+
             function setCookie(name, value, days = 1) {
                 const expires = new Date(Date.now() + days * 864e5).toUTCString();
                 document.cookie = name + '=' + encodeURIComponent(value) +
-                    '; expires=' + expires +
-                    '; path=/' +
-                    '; domain=.romach.space' +
-                    '; Secure';
-            }
+                '; expires=' + expires +
+                '; path=/' +
+                '; domain=.romach.space' +
+                '; Secure' +
+                '; SameSite=None';
+}
 
             function useFallbackUser() {
                 setCookie('glpi_user', 'jopa');
