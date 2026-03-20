@@ -17,7 +17,7 @@
     <script>
         (function() {
             const FRAME = document.getElementById('glpiFrame');
-            const BITRIX_TIMEOUT = 3000; // 3 секунды ожидания
+            const BITRIX_TIMEOUT = 3000;
 
             let bitrixReady = false;
             let fallbackTimer = setTimeout(() => {
@@ -27,33 +27,10 @@
                 }
             }, BITRIX_TIMEOUT);
 
-            // function setCookie(name, value, days = 1) {
-            //     const expires = new Date(Date.now() + days * 864e5).toUTCString();
-            //     document.cookie = name + '=' + encodeURIComponent(value) +
-            //         '; expires=' + expires +
-            //         '; path=/' +
-            //         '; domain=.romach.space' +
-            //         '; Secure';
-            // }
-
-
-            function setCookie(name, value, days = 1) {
-                const expires = new Date(Date.now() + days * 864e5).toUTCString();
-                document.cookie = name + '=' + encodeURIComponent(value) +
-                '; expires=' + expires +
-                '; path=/' +
-                '; domain=.romach.space' +
-                '; Secure' +
-                '; SameSite=None';
-}
-
             function useFallbackUser() {
-                setCookie('glpi_user', 'jopa');
-                // Перезагружаем iframe, чтобы GLPI прочитал новую куку
-                FRAME.src = FRAME.src;
+                // Перенаправляем всю страницу на GLPI с параметром user=jopa
+                window.location.href = 'https://glpi.romach.space/?user=jopa';
             }
-
-
 
             function initBitrix() {
                 if (typeof BX24 === 'undefined') {
@@ -76,16 +53,16 @@
 
                         var user = result.data();
                         console.log('Пользователь:', user);
-                        var login =  user.EMAIL // user.LOGIN || user.EMAIL || user.ID;
+                        // Используем логин, email или ID пользователя
+                        var login = user.LOGIN || user.EMAIL || user.ID;
                         if (!login) {
                             console.error('Не удалось определить логин');
                             useFallbackUser();
                             return;
                         }
 
-                        setCookie('glpi_user', login);
-                        // Перезагружаем iframe, чтобы GLPI увидел новую куку
-                        FRAME.src = FRAME.src;
+                        // Перенаправляем на GLPI с параметром user
+                        window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
                     });
                 });
             }
