@@ -246,7 +246,7 @@
       (progn (setf (hunchentoot:return-code*) 400) "Missing content parameter")))
 
 (hunchentoot:define-easy-handler (google-redirect :uri "/google") ()
-  (hunchentoot:redirect "https://glpi.romach.space"))
+  (hunchentoot:redirect "https://romach.space/chat"))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") ()
   (setf (hunchentoot:content-type*) "text/html")
