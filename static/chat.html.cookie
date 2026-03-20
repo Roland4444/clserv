@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>GLPI в iframe + Битрикс24</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; }
+        iframe { display: block; width: 100%; height: 100%; border: none; }
+    </style>
+    <script src="//api.bitrix24.com/api/v1/"></script>
+</head>
+<body>
+    <iframe id="glpiFrame" src="https://glpi.romach.space" title="GLPI"></iframe>
+
+    <script>
+        (function() {
+            const FRAME = document.getElementById('glpiFrame');
+            const BITRIX_TIMEOUT = 3000; // 3 секунды ожидания
+
+            let bitrixReady = false;
+            let fallbackTimer = setTimeout(() => {
+                if (!bitrixReady) {
+                    console.log('Таймаут инициализации Битрикс24, переход в автономный режим');
+                    useFallbackUser();
+                }
+            }, BITRIX_TIMEOUT);
+
+            // function setCookie(name, value, days = 1) {
+            //     const expires = new Date(Date.now() + days * 864e5).toUTCString();
+            //     document.cookie = name + '=' + encodeURIComponent(value) +
+            //         '; expires=' + expires +
+            //         '; path=/' +
+            //         '; domain=.romach.space' +
+            //         '; Secure';
+            // }
+
+
+            function setCookie(name, value, days = 1) {
+                const expires = new Date(Date.now() + days * 864e5).toUTCString();
+                document.cookie = name + '=' + encodeURIComponent(value) +
+                '; expires=' + expires +
+                '; path=/' +
+                '; domain=.romach.space' +
+                '; Secure' +
+                '; SameSite=None';
+}
+
+            // function useFallbackUser() {
+            //     setCookie('glpi_user', 'jopa');
+            //     // Перезагружаем iframe, чтобы GLPI прочитал новую куку
+            //     FRAME.src = FRAME.src;
+            // }
+
+
+            function useFallbackUser() {
+            // Резервный пользователь (например, при таймауте Битрикс24)
+                    var login = 'jopa';
+                    window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            }
+
+
+
+            function initBitrix() {
+                if (typeof BX24 === 'undefined') {
+                    console.error('Библиотека Битрикс24 не загружена');
+                    useFallbackUser();
+                    return;
+                }
+
+                BX24.init(function() {
+                    bitrixReady = true;
+                    clearTimeout(fallbackTimer);
+                    console.log('BX24 инициализирована');
+
+                    BX24.callMethod('user.current', {}, function(result) {
+                        if (result.error()) {
+                            console.error('Ошибка получения пользователя:', result.error());
+                            useFallbackUser();
+                            return;
+                        }
+
+                        var user = result.data();
+                        console.log('Пользователь:', user);
+                        var login =  user.EMAIL // user.LOGIN || user.EMAIL || user.ID;
+                        window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+
+                        if (!login) {
+                            console.error('Не удалось определить логин');
+                            useFallbackUser();
+                            return;
+                        }
+
+                        setCookie('glpi_user', login);
+                        // Перезагружаем iframe, чтобы GLPI увидел новую куку
+                        FRAME.src = FRAME.src;
+                    });
+                });
+            }
+
+            initBitrix();
+        })();
+    </script>
+</body>
+</html>
