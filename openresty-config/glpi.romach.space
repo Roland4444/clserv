@@ -1,0 +1,50 @@
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name glpi.romach.space;
+
+    ssl_certificate /etc/letsencrypt/live/romach.space/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/romach.space/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    client_max_body_size 50M;
+
+    # Основной location для GLPI (прокси на Apache)
+
+ location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_cookie_flags ~ secure samesite=none;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_hide_header X-Frame-Options;
+        proxy_set_header X-Frame-Options "";
+        proxy_set_header X-Forwarded-User "post-only";
+    }
+
+    location /app/ {
+        proxy_pass http://127.0.0.1:11111/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+
+
+
+}
+
+# Редирект с HTTP на HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name glpi.romach.space;
+    return 301 https://$host$request_uri;
+}
