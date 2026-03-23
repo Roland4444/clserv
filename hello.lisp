@@ -333,86 +333,170 @@
 
 ;;;   ==>  xhr minimal
 
+; (defun chat-html (&optional debug-user)
+;   (if debug-user
+;       ;; Режим debug – делаем logout с алертами
+;       (format nil
+;               "<!DOCTYPE html>
+; <html lang=\"ru\">
+; <head>
+;     <meta charset=\"UTF-8\">
+;     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+;     <title>Перенаправление в GLPI</title>
+; </head>
+; <body>
+;     <script>
+;         function redirectToGLPI(login) {
+;             if (!login) login = 'jopa';
+;             alert('DEBUG: Выполняется logout');
+;             var xhr = new XMLHttpRequest();
+;             xhr.open('GET', 'https://glpi.romach.space/front/logout.php?noAUTO=1', true);
+;             xhr.withCredentials = true;
+;             xhr.onload = function() {
+;                 alert('DEBUG: logout завершён, редирект на GLPI');
+;                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+;             };
+;             xhr.onerror = function() {
+;                 alert('DEBUG: Ошибка logout, всё равно редирект');
+;                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+;             };
+;             xhr.send();
+;         }
+;         var debugUser = \"~a\";
+;         alert('Debug mode: using user ' + debugUser);
+;         redirectToGLPI(debugUser);
+;     </script>
+; </body>
+; </html>"
+;               debug-user)
+;       ;; Обычный режим – без logout, но с алертом
+;       (format nil
+;               "<!DOCTYPE html>
+; <html lang=\"ru\">
+; <head>
+;     <meta charset=\"UTF-8\">
+;     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+;     <title>Перенаправление в GLPI</title>
+;     <script src=\"//api.bitrix24.com/api/v1/\"></script>
+; </head>
+; <body>
+;     <script>
+;         function redirectToGLPI(login) {
+;             if (!login) login = 'jopa';
+;             alert('NORMAL: Редирект на GLPI без logout');
+;             window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+;         }
+;         (function() {
+;             if (window.self === window.top) {
+;                 redirectToGLPI('jopa');
+;             } else if (typeof BX24 === 'undefined') {
+;                 redirectToGLPI('jopa');
+;             } else {
+;                 var timeout = setTimeout(function() {
+;                     redirectToGLPI('jopa');
+;                 }, 3000);
+;                 BX24.init(function() {
+;                     clearTimeout(timeout);
+;                     BX24.installFinish();
+;                     BX24.callMethod('user.current', {}, function(result) {
+;                         if (result.error()) {
+;                             redirectToGLPI('jopa');
+;                             return;
+;                         }
+;                         var user = result.data();
+;                         var login = user.LOGIN || user.EMAIL || user.ID;
+;                         redirectToGLPI(login || 'jopa');
+;                     });
+;                 });
+;             }
+;         })();
+;     </script>
+; </body>
+; </html>")))
+
+
+
+;; var 3
 (defun chat-html (&optional debug-user)
+  "Генерирует HTML для /chat. Если DEBUG-USER задан, сразу загружает GLPI в iframe."
   (if debug-user
-      ;; Режим debug – делаем logout с алертами
+      ;; Режим debug: сразу показываем iframe с GLPI
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
 <head>
     <meta charset=\"UTF-8\">
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-    <title>Перенаправление в GLPI</title>
+    <title>GLPI в iframe</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; }
+        iframe { display: block; width: 100%; height: 100%; border: none; }
+    </style>
 </head>
 <body>
+    <iframe id=\"glpiFrame\" title=\"GLPI\"></iframe>
     <script>
-        function redirectToGLPI(login) {
-            if (!login) login = 'jopa';
-            alert('DEBUG: Выполняется logout');
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', 'https://glpi.romach.space/front/logout.php?noAUTO=1', true);
-            xhr.withCredentials = true;
-            xhr.onload = function() {
-                alert('DEBUG: logout завершён, редирект на GLPI');
-                window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-            };
-            xhr.onerror = function() {
-                alert('DEBUG: Ошибка logout, всё равно редирект');
-                window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-            };
-            xhr.send();
-        }
-        var debugUser = \"~a\";
-        alert('Debug mode: using user ' + debugUser);
-        redirectToGLPI(debugUser);
+        var user = \"~a\";
+        alert('Debug mode: loading GLPI for user ' + user);
+        document.getElementById('glpiFrame').src = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
     </script>
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим – без logout, но с алертом
+      ;; Обычный режим: получаем пользователя из Битрикс24, затем загружаем iframe
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
 <head>
     <meta charset=\"UTF-8\">
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-    <title>Перенаправление в GLPI</title>
+    <title>GLPI в iframe + Битрикс24</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; }
+        iframe { display: block; width: 100%; height: 100%; border: none; }
+    </style>
     <script src=\"//api.bitrix24.com/api/v1/\"></script>
 </head>
 <body>
+    <iframe id=\"glpiFrame\" title=\"GLPI\"></iframe>
     <script>
-        function redirectToGLPI(login) {
+        function loadGLPI(login) {
             if (!login) login = 'jopa';
-            alert('NORMAL: Редирект на GLPI без logout');
-            window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            document.getElementById('glpiFrame').src = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
         }
         (function() {
             if (window.self === window.top) {
-                redirectToGLPI('jopa');
+                loadGLPI('jopa');
             } else if (typeof BX24 === 'undefined') {
-                redirectToGLPI('jopa');
+                loadGLPI('jopa');
             } else {
                 var timeout = setTimeout(function() {
-                    redirectToGLPI('jopa');
+                    loadGLPI('jopa');
                 }, 3000);
                 BX24.init(function() {
                     clearTimeout(timeout);
                     BX24.installFinish();
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
-                            redirectToGLPI('jopa');
+                            loadGLPI('jopa');
                             return;
                         }
                         var user = result.data();
                         var login = user.LOGIN || user.EMAIL || user.ID;
-                        redirectToGLPI(login || 'jopa');
+                        loadGLPI(login || 'jopa');
                     });
                 });
             }
         })();
     </script>
 </body>
-</html>")))
+</html>"))))
+
+; (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+;   (chat-html debug-user))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
