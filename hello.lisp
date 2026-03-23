@@ -248,11 +248,11 @@
 (hunchentoot:define-easy-handler (google-redirect :uri "/google") ()
   (hunchentoot:redirect "https://romach.space/chat"))
 
-
+;;; xhr => APple 
 (defun chat-html (&optional debug-user)
   "Генерирует HTML для /chat. Если DEBUG-USER задан, используется он (без BX24)."
   (if debug-user
-      ;; Режим debug: без загрузки BX24, сразу редирект с переданным пользователем
+      ;; Режим debug
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
@@ -265,12 +265,13 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
-                method: 'GET',
-                credentials: 'include'
-            }).finally(function() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'https://glpi.romach.space/front/logout.php?noAUTO=1', true);
+            xhr.withCredentials = true;
+            xhr.onload = xhr.onerror = function() {
                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-            });
+            };
+            xhr.send();
         }
         var debugUser = \"~a\";
         alert('Debug mode: using user ' + debugUser);
@@ -279,7 +280,7 @@
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим: с BX24 и installFinish
+      ;; Обычный режим
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
@@ -293,12 +294,13 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
-                method: 'GET',
-                credentials: 'include'
-            }).finally(function() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'https://glpi.romach.space/front/logout.php?noAUTO=1', true);
+            xhr.withCredentials = true;
+            xhr.onload = xhr.onerror = function() {
                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-            });
+            };
+            xhr.send();
         }
         (function() {
             if (window.self === window.top) {
@@ -311,7 +313,7 @@
                 }, 3000);
                 BX24.init(function() {
                     clearTimeout(timeout);
-                    BX24.installFinish();   // <-- завершаем установку
+                    BX24.installFinish();
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
                             redirectToGLPI('jopa');
@@ -327,6 +329,10 @@
     </script>
 </body>
 </html>")))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (chat-html debug-user))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
