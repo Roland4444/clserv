@@ -16,7 +16,7 @@
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
-  #:test-headers-simple))
+  #:test-headers-simple   #:test-chat-html))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
 
@@ -250,20 +250,16 @@
 
 
 (defun chat-html (&optional debug-user)
-  "Генерирует HTML для страницы /chat.
-   Если DEBUG-USER задан, он будет использован как фиксированный логин."
-  (let ((debug-value
-          (if debug-user
-              (format nil "~s" debug-user)   ; ~s экранирует спецсимволы и заключает в кавычки
-              "null")))
-    (format nil
-      "<!DOCTYPE html>
+  "Генерирует HTML для /chat. Если DEBUG-USER задан, используется он (без BX24)."
+  (if debug-user
+      ;; Режим debug: без загрузки BX24, сразу редирект с переданным пользователем
+      (format nil
+              "<!DOCTYPE html>
 <html lang=\"ru\">
 <head>
     <meta charset=\"UTF-8\">
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
     <title>Перенаправление в GLPI</title>
-    ~:[<script src=\"//api.bitrix24.com/api/v1/\"></script>~;~]
 </head>
 <body>
     <script>
@@ -276,13 +272,35 @@
                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
             });
         }
-
-        var debugUser = %s;
-        if (debugUser && debugUser !== '') {
-            alert('Debug mode: using user ' + debugUser);
-            redirectToGLPI(debugUser);
-        } else {
-            // Обычный режим: работаем через Битрикс24
+        var debugUser = \"~a\";
+        alert('Debug mode: using user ' + debugUser);
+        redirectToGLPI(debugUser);
+    </script>
+</body>
+</html>"
+              debug-user)
+      ;; Обычный режим: с BX24
+      (format nil
+              "<!DOCTYPE html>
+<html lang=\"ru\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Перенаправление в GLPI</title>
+    <script src=\"//api.bitrix24.com/api/v1/\"></script>
+</head>
+<body>
+    <script>
+        function redirectToGLPI(login) {
+            if (!login) login = 'jopa';
+            fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
+                method: 'GET',
+                credentials: 'include'
+            }).finally(function() {
+                window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            });
+        }
+        (function() {
             if (window.self === window.top) {
                 redirectToGLPI('jopa');
             } else if (typeof BX24 === 'undefined') {
@@ -304,18 +322,39 @@
                     });
                 });
             }
-        }
+        })();
     </script>
 </body>
-</html>"
-      (if debug-user nil t)   ; если debug-user задан, не подключаем BX24
-      debug-value)))
+</html>")))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
   (chat-html debug-user))
 
 
+
+
+(defun test-chat-html ()
+  "Тестирует генерацию HTML для /chat с параметром debug-user."
+  (let* ((test-user "junglefromlondon@yandex.ru")
+         (html (chat-html test-user))
+         (no-bx24 (not (search "api.bitrix24.com" html)))
+         (has-debug-user (search test-user html))
+         (has-alert (search "alert('Debug mode: using user " html))
+         (has-format-placeholder (search "%s" html)))
+    (format t "~%=== Тест обработчика /chat ===~%")
+    (format t "HTML длина: ~A~%" (length html))
+    (format t "Не загружен BX24? ~A~%" no-bx24)
+    (format t "Содержит debug-user '~A'? ~A~%" test-user (not (null has-debug-user)))
+    (format t "Содержит alert? ~A~%" (not (null has-alert)))
+    (format t "Содержит %s? ~A~%" (not (null has-format-placeholder)))
+    (format t "~%Первые 3500 символов HTML:~%~A~%" (subseq html 0 (min 3500 (length html))))
+    (assert no-bx24 nil "Ошибка: BX24 загружается в debug-режиме")
+    (assert has-debug-user nil "Ошибка: параметр debug-user не вставлен")
+    (assert has-alert nil "Ошибка: alert не найден")
+    (assert (not has-format-placeholder) nil "Ошибка: в HTML остался %s")
+    (format t "~%Тест пройден успешно!~%")
+    t))
 
 
 ; (hunchentoot:define-easy-handler (chat :uri "/chat") ()
@@ -1609,4 +1648,4 @@
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-id)'
 
-
+;; sbcl --load hello.lisp      --eval '(hello:test-chat-html)'
