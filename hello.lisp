@@ -542,9 +542,8 @@
 ; </html>")))
 
 (defun chat-html (&optional debug-user)
-  "Генерирует HTML для /chat. Для iOS использует window.open, для остальных — iframe."
   (if debug-user
-      ;; Режим debug: сразу загружаем GLPI
+      ;; Режим debug
       (format nil
               "<!DOCTYPE html>
 <html>
@@ -563,64 +562,56 @@
 <body></body>
 </html>"
               debug-user)
-      ;; Обычный режим: получаем пользователя из Битрикс24
+      ;; Обычный режим: iframe в HTML, скрипт меняет src после получения пользователя
       (format nil
               "<!DOCTYPE html>
 <html>
 <head><meta charset=\"UTF-8\"><title>GLPI</title>
 <style>body,html{margin:0;padding:0;height:100%}iframe{width:100%;height:100%;border:0}</style>
 <script src=\"//api.bitrix24.com/api/v1/\"></script>
-<script>
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    function loadGLPI(login) {
-        if (!login) login = 'jopa';
-        var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-        if (isIOS) {
-            window.open(url, '_blank');
-        } else {
-            var iframe = document.getElementById('glpiFrame');
-            if (iframe) iframe.src = url;
-        }
-    }
-
-    (function() {
-        // Создаём iframe для не-iOS платформ
-        var iframe = document.createElement('iframe');
-        iframe.id = 'glpiFrame';
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-        iframe.style.border = '0';
-        iframe.src = 'about:blank';
-        document.body.appendChild(iframe);
-
-        if (window.self === window.top) {
-            // Не в iframe Битрикс24 – просто редирект (можно и iframe, но редирект проще)
-            loadGLPI('jopa');
-        } else if (typeof BX24 === 'undefined') {
-            loadGLPI('jopa');
-        } else {
-            var timeout = setTimeout(function() {
-                loadGLPI('jopa');
-            }, 3000);
-            BX24.init(function() {
-                clearTimeout(timeout);
-                BX24.installFinish();
-                BX24.callMethod('user.current', {}, function(result) {
-                    if (result.error()) {
-                        loadGLPI('jopa');
-                        return;
-                    }
-                    var user = result.data();
-                    var login = user.LOGIN || user.EMAIL || user.ID;
-                    loadGLPI(login || 'jopa');
-                });
-            });
-        }
-    })();
-</script>
 </head>
-<body></body>
+<body>
+    <iframe id=\"glpiFrame\" src=\"about:blank\"></iframe>
+    <script>
+        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+        function loadGLPI(login) {
+            if (!login) login = 'jopa';
+            var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            if (isIOS) {
+                window.open(url, '_blank');
+            } else {
+                var iframe = document.getElementById('glpiFrame');
+                if (iframe) iframe.src = url;
+            }
+        }
+
+        (function() {
+            if (window.self === window.top) {
+                loadGLPI('jopa');
+            } else if (typeof BX24 === 'undefined') {
+                loadGLPI('jopa');
+            } else {
+                var timeout = setTimeout(function() {
+                    loadGLPI('jopa');
+                }, 3000);
+                BX24.init(function() {
+                    clearTimeout(timeout);
+                    BX24.installFinish();
+                    BX24.callMethod('user.current', {}, function(result) {
+                        if (result.error()) {
+                            loadGLPI('jopa');
+                            return;
+                        }
+                        var user = result.data();
+                        var login = user.LOGIN || user.EMAIL || user.ID;
+                        loadGLPI(login || 'jopa');
+                    });
+                });
+            }
+        })();
+    </script>
+</body>
 </html>")))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
