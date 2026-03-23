@@ -11,11 +11,25 @@ server {
     client_max_body_size 50M;
 
 location / {
-    content_by_lua_block {
+content_by_lua_block {
+        local user = ngx.var.arg_user or ""
+        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+        local log_line = timestamp .. " user=" .. user .. "\n"
+        print("suck my cock")
+        -- Запись в файл
+        local file, err = io.open("/var/log/openresty/reqs.log", "a")
+
+        if file then
+            file:write(log_line)
+            file:close()
+        else
+            ngx.log(ngx.ERR, "Failed to open log file: ", err)
+        end
+
+        -- Ответ пользователю
         ngx.header.content_type = "text/plain"
-        local user = ngx.var.arg_user
-        if user and user ~= "" then
-            ngx.say("User parameter from root: " .. user)
+        if user ~= "" then
+            ngx.say("User par555555555555555555ameter from root: " .. user)
         else
             ngx.say("No user parameter from root")
         end
