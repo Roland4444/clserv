@@ -2,67 +2,47 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>GLPI в iframe + Битрикс24</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { width: 100%; height: 100%; overflow: hidden; }
-        iframe { display: block; width: 100%; height: 100%; border: none; }
-    </style>
+    <title>Перенаправление в GLPI</title>
     <script src="//api.bitrix24.com/api/v1/"></script>
 </head>
 <body>
-    <iframe id="glpiFrame" title="GLPI"></iframe>
-
     <script>
-        (function() {
-            const FRAME = document.getElementById('glpiFrame');
-            const BITRIX_TIMEOUT = 3000;
-            let bitrixReady = false;
-            let fallbackTimer = setTimeout(() => {
-                if (!bitrixReady) {
-                    console.log('Таймаут, переход в автономный режим');
-                    loadGLPI('jopa');
-                }
-            }, BITRIX_TIMEOUT);
-            function loadGLPI(user) {
-                if (!user) user = 'jopa';
-                alert(user);
+        function redirectToGLPI(login) {
+            if (!login) login = 'jopa';
+            // Вызываем logout GLPI, чтобы сбросить старую сессию
+            fetch('https://glpi.romach.space/front/logout.php', {
+                method: 'GET',
+                credentials: 'include'
+            }).finally(() => {
+                // Затем перенаправляем с новым пользователем
+                window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            });
+        }
 
-                FRAME.src = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
-            }
+        if (window.self === window.top) {
+            redirectToGLPI('jopa');
+        } else if (typeof BX24 === 'undefined') {
+            redirectToGLPI('jopa');
+        } else {
+            let timeout = setTimeout(() => {
+                console.log('Таймаут Битрикс24, резервный пользователь');
+                redirectToGLPI('jopa');
+            }, 3000);
 
-            function initBitrix() {
-                if (typeof BX24 === 'undefined') {
-                    console.error('Библиотека Битрикс24 не загружена');
-                    loadGLPI('jopa');
-                    return;
-                }
-                BX24.init(function() {
-                    bitrixReady = true;
-                    clearTimeout(fallbackTimer);
-                    console.log('BX24 инициализирована');
-                    BX24.callMethod('user.current', {}, function(result) {
-                        if (result.error()) {
-                            console.error('Ошибка получения пользователя:', result.error());
-                            loadGLPI('jopa');
-                            return;
-                        }
-                        var user = result.data();
-                        console.log('Пользователь:', user);
-                        var login = user.LOGIN || user.EMAIL || user.ID;
-                        if (!login) {
-                            console.error('Не удалось определить логин');
-                            loadGLPI('jopa');
-                            return;
-                        }
-                        loadGLPI(login);
-                    });
+            BX24.init(function() {
+                clearTimeout(timeout);
+                BX24.callMethod('user.current', {}, function(result) {
+                    if (result.error()) {
+                        console.error('Ошибка получения пользователя:', result.error());
+                        redirectToGLPI('jopa');
+                        return;
+                    }
+                    var user = result.data();
+                    var login = user.LOGIN || user.EMAIL || user.ID;
+                    redirectToGLPI(login || 'jopa');
                 });
-            }
-
-            initBitrix();
-        })();
+            });
+        }
     </script>
 </body>
 </html>
