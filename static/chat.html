@@ -9,8 +9,8 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            // Вызываем logout GLPI, чтобы сбросить старую сессию
-            fetch('https://glpi.romach.space/front/logout.php', {
+            // Вызываем logout GLPI с параметром noAUTO=1, чтобы принудительно сбросить сессию
+            fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
                 method: 'GET',
                 credentials: 'include'
             }).finally(() => {
