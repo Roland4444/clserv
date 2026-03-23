@@ -25,9 +25,10 @@
                     loadGLPI('jopa');
                 }
             }, BITRIX_TIMEOUT);
-
             function loadGLPI(user) {
                 if (!user) user = 'jopa';
+                alert(user);
+
                 FRAME.src = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
             }
 
