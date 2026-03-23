@@ -563,48 +563,68 @@
 <head><meta charset=\"UTF-8\"><title>GLPI</title>
 <style>body,html{margin:0;padding:0;height:100%}iframe{width:100%;height:100%;border:0}</style>
 <script src=\"//api.bitrix24.com/api/v1/\"></script>
+<script>
+    function isIOS() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+    function loadGLPI(login) {
+        if (!login) login = 'jopa';
+        var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+        if (isIOS()) {
+            // На iOS открываем в новой вкладке (обход блокировки iframe)
+            window.open(url, '_blank');
+        } else {
+            // На Android и остальных – iframe
+            var iframe = document.getElementById('glpiFrame');
+            if (iframe) iframe.src = url;
+        }
+    }
+    (function() {
+        // Создаём iframe сразу (даже если он не будет использован на iOS)
+        var iframe = document.createElement('iframe');
+        iframe.id = 'glpiFrame';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = '0';
+        iframe.src = 'about:blank';
+        document.body.appendChild(iframe);
+
+        if (window.self === window.top) {
+            loadGLPI('jopa');
+        } else if (typeof BX24 === 'undefined') {
+            loadGLPI('jopa');
+        } else {
+            var timeout = setTimeout(function() {
+                loadGLPI('jopa');
+            }, 3000);
+            BX24.init(function() {
+                clearTimeout(timeout);
+                BX24.installFinish();
+                BX24.callMethod('user.current', {}, function(result) {
+                    if (result.error()) {
+                        loadGLPI('jopa');
+                        return;
+                    }
+                    var user = result.data();
+                    var login = user.LOGIN || user.EMAIL || user.ID;
+                    loadGLPI(login || 'jopa');
+                });
+            });
+        }
+    })();
+</script>
 </head>
 <body>
-    <iframe id=\"glpiFrame\" title=\"GLPI\" src=\"about:blank\"></iframe>
-    <script>
-        function loadGLPI(login) {
-            if (!login) login = 'jopa';
-            var iframe = document.getElementById('glpiFrame');
-            iframe.src = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-        }
-        (function() {
-            if (window.self === window.top) {
-                loadGLPI('jopa');
-            } else if (typeof BX24 === 'undefined') {
-                loadGLPI('jopa');
-            } else {
-                var timeout = setTimeout(function() {
-                    loadGLPI('jopa');
-                }, 3000);
-                BX24.init(function() {
-                    clearTimeout(timeout);
-                    BX24.installFinish();
-                    BX24.callMethod('user.current', {}, function(result) {
-                        if (result.error()) {
-                            loadGLPI('jopa');
-                            return;
-                        }
-                        var user = result.data();
-                        var login = user.LOGIN || user.EMAIL || user.ID;
-                        loadGLPI(login || 'jopa');
-                    });
-                });
-            }
-        })();
-    </script>
 </body>
 </html>")))
-
-
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
   (chat-html debug-user))
+
+
+
+
 
 ; (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
 ;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
