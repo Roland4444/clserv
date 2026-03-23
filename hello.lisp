@@ -629,6 +629,27 @@
   (proxy-to-glpi login))
 
 
+(defun tradingview-html ()
+  "<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"UTF-8\">
+    <title>TradingView</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; }
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+    <iframe src=\"https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BTCUSD&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=dark&style=1&timezone=exchange&withdateranges=1&hideideas=1&hideideas=1&allow_symbol_change=1&saveimage=1&details=1&hotlist=1&calendar=1&news=1&noheader=0\"
+            title=\"TradingView Widget\"></iframe>
+</body>
+</html>")
+
+(hunchentoot:define-easy-handler (tradingview :uri "/tradingview") ()
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (tradingview-html))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
