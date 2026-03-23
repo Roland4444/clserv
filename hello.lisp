@@ -492,7 +492,7 @@
         })();
     </script>
 </body>
-</html>"))))
+</html>")))
 
 ; (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
 ;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
