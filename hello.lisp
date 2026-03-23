@@ -250,24 +250,25 @@
 
 
 (defun chat-html (&optional debug-user)
-  "Генерирует HTML для страницы /chat. Если DEBUG-USER задан, он будет использован как фиксированный логин."
-  (let ((debug-value (if debug-user
-                         (format nil "'~a'" (cl-ppcre:regex-replace-all "'" debug-user "\\'"))
-                         "null")))
-    (format nil "
-<!DOCTYPE html>
+  "Генерирует HTML для страницы /chat.
+   Если DEBUG-USER задан, он будет использован как фиксированный логин."
+  (let ((debug-value
+          (if debug-user
+              (format nil "~s" debug-user)   ; ~s экранирует спецсимволы и заключает в кавычки
+              "null")))
+    (format nil
+      "<!DOCTYPE html>
 <html lang=\"ru\">
 <head>
     <meta charset=\"UTF-8\">
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
     <title>Перенаправление в GLPI</title>
-    <script src=\"//api.bitrix24.com/api/v1/\"></script>
+    ~:[<script src=\"//api.bitrix24.com/api/v1/\"></script>~;~]
 </head>
 <body>
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            // Предварительно сбрасываем сессию GLPI
             fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
                 method: 'GET',
                 credentials: 'include'
@@ -278,7 +279,7 @@
 
         var debugUser = %s;
         if (debugUser && debugUser !== '') {
-            console.log('Debug mode: using user', debugUser);
+            alert('Debug mode: using user ' + debugUser);
             redirectToGLPI(debugUser);
         } else {
             // Обычный режим: работаем через Битрикс24
@@ -288,15 +289,12 @@
                 redirectToGLPI('jopa');
             } else {
                 var timeout = setTimeout(function() {
-                    console.log('Таймаут Битрикс24, резервный пользователь');
                     redirectToGLPI('jopa');
                 }, 3000);
-
                 BX24.init(function() {
                     clearTimeout(timeout);
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
-                            console.error('Ошибка получения пользователя:', result.error());
                             redirectToGLPI('jopa');
                             return;
                         }
@@ -309,17 +307,15 @@
         }
     </script>
 </body>
-</html>" debug-value)))
+</html>"
+      (if debug-user nil t)   ; если debug-user задан, не подключаем BX24
+      debug-value)))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
-  "Обработчик страницы /chat. Параметр debug-user (опциональный) — имя пользователя для принудительного входа."
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
   (chat-html debug-user))
 
-(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
-  "Обработчик страницы /chat. Параметр debug-user (опциональный) — имя пользователя для принудительного входа."
-  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (chat-html debug-user))
+
 
 
 ; (hunchentoot:define-easy-handler (chat :uri "/chat") ()
