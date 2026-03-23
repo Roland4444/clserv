@@ -12,50 +12,57 @@
     <script src="//api.bitrix24.com/api/v1/"></script>
 </head>
 <body>
-    <iframe id="glpiFrame" title="GLPI"></iframe>
+    <iframe id="glpiFrame" src="https://glpi.romach.space" title="GLPI"></iframe>
 
     <script>
         (function() {
             const FRAME = document.getElementById('glpiFrame');
             const BITRIX_TIMEOUT = 3000;
+
             let bitrixReady = false;
             let fallbackTimer = setTimeout(() => {
                 if (!bitrixReady) {
-                    console.log('Таймаут, переход в автономный режим');
-                    loadGLPI('jopa');
+                    console.log('Таймаут инициализации Битрикс24, переход в автономный режим');
+                    useFallbackUser();
                 }
             }, BITRIX_TIMEOUT);
 
-            function loadGLPI(user) {
-                if (!user) user = 'jopa';
-                FRAME.src = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
+            function useFallbackUser() {
+                // Перенаправляем всю страницу на GLPI с параметром user=jopa  /////////////////
+                window.location.href = 'https://glpi.romach.space/?user=jopa';
             }
 
             function initBitrix() {
                 if (typeof BX24 === 'undefined') {
                     console.error('Библиотека Битрикс24 не загружена');
-                    loadGLPI('jopa');
+                    useFallbackUser();
                     return;
                 }
+
                 BX24.init(function() {
                     bitrixReady = true;
                     clearTimeout(fallbackTimer);
                     console.log('BX24 инициализирована');
+
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
                             console.error('Ошибка получения пользователя:', result.error());
-                            loadGLPI('jopa');
+                            useFallbackUser();
                             return;
                         }
+
                         var user = result.data();
                         console.log('Пользователь:', user);
+                        // Используем логин, email или ID пользователя
                         var login = user.LOGIN || user.EMAIL || user.ID;
                         if (!login) {
                             console.error('Не удалось определить логин');
-                            loadGLPI('jopa');
+                            useFallbackUser();
                             return;
                         }
-                        loadGLPI(login);
+
+                        // Перенаправляем на GLPI с параметром user
+                        window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
                     });
                 });
             }
