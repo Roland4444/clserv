@@ -541,22 +541,29 @@
 ; </body>
 ; </html>")))
 
-
 (defun chat-html (&optional debug-user)
+  "Генерирует HTML для /chat. Для iOS использует window.open, для остальных — iframe."
   (if debug-user
-      ;; Режим debug: сразу загружаем GLPI в iframe
+      ;; Режим debug: сразу загружаем GLPI
       (format nil
               "<!DOCTYPE html>
 <html>
 <head><meta charset=\"UTF-8\"><title>GLPI</title>
 <style>body,html{margin:0;padding:0;height:100%}iframe{width:100%;height:100%;border:0}</style>
+<script>
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    var url = 'https://glpi.romach.space/?user=~a';
+    if (isIOS) {
+        window.open(url, '_blank');
+    } else {
+        document.write('<iframe src=\"' + url + '\"></iframe>');
+    }
+</script>
 </head>
-<body>
-    <iframe src=\"https://glpi.romach.space/?user=~a\"></iframe>
-</body>
+<body></body>
 </html>"
               debug-user)
-      ;; Обычный режим: получаем пользователя из Битрикс24 и загружаем iframe
+      ;; Обычный режим: получаем пользователя из Битрикс24
       (format nil
               "<!DOCTYPE html>
 <html>
@@ -564,23 +571,21 @@
 <style>body,html{margin:0;padding:0;height:100%}iframe{width:100%;height:100%;border:0}</style>
 <script src=\"//api.bitrix24.com/api/v1/\"></script>
 <script>
-    function isIOS() {
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    }
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
     function loadGLPI(login) {
         if (!login) login = 'jopa';
         var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-        if (isIOS()) {
-            // На iOS открываем в новой вкладке (обход блокировки iframe)
+        if (isIOS) {
             window.open(url, '_blank');
         } else {
-            // На Android и остальных – iframe
             var iframe = document.getElementById('glpiFrame');
             if (iframe) iframe.src = url;
         }
     }
+
     (function() {
-        // Создаём iframe сразу (даже если он не будет использован на iOS)
+        // Создаём iframe для не-iOS платформ
         var iframe = document.createElement('iframe');
         iframe.id = 'glpiFrame';
         iframe.style.width = '100%';
@@ -590,6 +595,7 @@
         document.body.appendChild(iframe);
 
         if (window.self === window.top) {
+            // Не в iframe Битрикс24 – просто редирект (можно и iframe, но редирект проще)
             loadGLPI('jopa');
         } else if (typeof BX24 === 'undefined') {
             loadGLPI('jopa');
@@ -614,15 +620,12 @@
     })();
 </script>
 </head>
-<body>
-</body>
+<body></body>
 </html>")))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
   (chat-html debug-user))
-
-
 
 
 
