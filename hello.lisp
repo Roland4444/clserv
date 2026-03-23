@@ -483,56 +483,115 @@
 ; </body>
 ; </html>")))
 
+;;;;;;ZZZZZZZZZZZZZZ
+; (defun chat-html (&optional debug-user)
+;   (if debug-user
+;       ;; Режим debug: мета-редирект
+;       (format nil
+;               "<!DOCTYPE html>
+; <html>
+; <head><meta charset=\"UTF-8\"><meta http-equiv=\"refresh\" content=\"0;url=https://glpi.romach.space/?user=~a\"></head>
+; <body>
+;     <p>Перенаправление в GLPI...</p>
+; </body>
+; </html>"
+;               debug-user)
+;       ;; Обычный режим: получаем пользователя из Битрикс24 и делаем мета-редирект
+;       (format nil
+;               "<!DOCTYPE html>
+; <html>
+; <head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title>
+; <script src=\"//api.bitrix24.com/api/v1/\"></script>
+; </head>
+; <body>
+;     <script>
+;         function redirectToGLPI(login) {
+;             if (!login) login = 'jopa';
+;             // Создаём мета-тег динамически
+;             var meta = document.createElement('meta');
+;             meta.httpEquiv = 'refresh';
+;             meta.content = '0;url=https://glpi.romach.space/?user=' + encodeURIComponent(login);
+;             document.head.appendChild(meta);
+;         }
+;         (function() {
+;             if (window.self === window.top) {
+;                 redirectToGLPI('jopa');
+;             } else if (typeof BX24 === 'undefined') {
+;                 redirectToGLPI('jopa');
+;             } else {
+;                 var timeout = setTimeout(function() {
+;                     redirectToGLPI('jopa');
+;                 }, 3000);
+;                 BX24.init(function() {
+;                     clearTimeout(timeout);
+;                     BX24.installFinish();
+;                     BX24.callMethod('user.current', {}, function(result) {
+;                         if (result.error()) {
+;                             redirectToGLPI('jopa');
+;                             return;
+;                         }
+;                         var user = result.data();
+;                         var login = user.LOGIN || user.EMAIL || user.ID;
+;                         redirectToGLPI(login || 'jopa');
+;                     });
+;                 });
+;             }
+;         })();
+;     </script>
+; </body>
+; </html>")))
+
 
 (defun chat-html (&optional debug-user)
   (if debug-user
-      ;; Режим debug: мета-редирект
+      ;; Режим debug: сразу загружаем GLPI в iframe
       (format nil
               "<!DOCTYPE html>
 <html>
-<head><meta charset=\"UTF-8\"><meta http-equiv=\"refresh\" content=\"0;url=https://glpi.romach.space/?user=~a\"></head>
+<head><meta charset=\"UTF-8\"><title>GLPI</title>
+<style>body,html{margin:0;padding:0;height:100%}iframe{width:100%;height:100%;border:0}</style>
+</head>
 <body>
-    <p>Перенаправление в GLPI...</p>
+    <iframe src=\"https://glpi.romach.space/?user=~a\"></iframe>
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим: получаем пользователя из Битрикс24 и делаем мета-редирект
+      ;; Обычный режим: получаем пользователя из Битрикс24 и загружаем iframe
       (format nil
               "<!DOCTYPE html>
 <html>
-<head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title>
+<head><meta charset=\"UTF-8\"><title>GLPI</title>
+<style>body,html{margin:0;padding:0;height:100%}iframe{width:100%;height:100%;border:0}</style>
 <script src=\"//api.bitrix24.com/api/v1/\"></script>
 </head>
 <body>
+    <iframe id=\"glpiFrame\" title=\"GLPI\" src=\"about:blank\"></iframe>
     <script>
-        function redirectToGLPI(login) {
+        function loadGLPI(login) {
             if (!login) login = 'jopa';
-            // Создаём мета-тег динамически
-            var meta = document.createElement('meta');
-            meta.httpEquiv = 'refresh';
-            meta.content = '0;url=https://glpi.romach.space/?user=' + encodeURIComponent(login);
-            document.head.appendChild(meta);
+            var iframe = document.getElementById('glpiFrame');
+            iframe.src = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
         }
         (function() {
             if (window.self === window.top) {
-                redirectToGLPI('jopa');
+                loadGLPI('jopa');
             } else if (typeof BX24 === 'undefined') {
-                redirectToGLPI('jopa');
+                loadGLPI('jopa');
             } else {
                 var timeout = setTimeout(function() {
-                    redirectToGLPI('jopa');
+                    loadGLPI('jopa');
                 }, 3000);
                 BX24.init(function() {
                     clearTimeout(timeout);
                     BX24.installFinish();
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
-                            redirectToGLPI('jopa');
+                            loadGLPI('jopa');
                             return;
                         }
                         var user = result.data();
                         var login = user.LOGIN || user.EMAIL || user.ID;
-                        redirectToGLPI(login || 'jopa');
+                        loadGLPI(login || 'jopa');
                     });
                 });
             }
@@ -540,6 +599,7 @@
     </script>
 </body>
 </html>")))
+
 
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
