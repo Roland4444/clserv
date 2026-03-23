@@ -485,23 +485,18 @@
 
 
 (defun chat-html (&optional debug-user)
-  "Генерирует HTML для /chat. Если DEBUG-USER задан, используется он (без BX24)."
   (if debug-user
-      ;; Режим debug: открываем GLPI в новой вкладке
+      ;; Режим debug: мета-редирект
       (format nil
               "<!DOCTYPE html>
 <html>
-<head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title></head>
+<head><meta charset=\"UTF-8\"><meta http-equiv=\"refresh\" content=\"0;url=https://glpi.romach.space/?user=~a\"></head>
 <body>
-    <script>
-        var user = \"~a\";
-        alert('Debug mode: opening GLPI for user ' + user);
-        window.open('https://glpi.romach.space/?user=' + encodeURIComponent(user), '_blank');
-    </script>
+    <p>Перенаправление в GLPI...</p>
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим: получаем пользователя из Битрикс24 и открываем GLPI в новой вкладке
+      ;; Обычный режим: получаем пользователя из Битрикс24 и делаем мета-редирект
       (format nil
               "<!DOCTYPE html>
 <html>
@@ -512,8 +507,11 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            alert('Opening GLPI for user: ' + login);
-            window.open('https://glpi.romach.space/?user=' + encodeURIComponent(login), '_blank');
+            // Создаём мета-тег динамически
+            var meta = document.createElement('meta');
+            meta.httpEquiv = 'refresh';
+            meta.content = '0;url=https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            document.head.appendChild(meta);
         }
         (function() {
             if (window.self === window.top) {
