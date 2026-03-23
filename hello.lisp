@@ -418,74 +418,54 @@
 
 ;; var 3
 (defun chat-html (&optional debug-user)
-  "Генерирует HTML для /chat. Если DEBUG-USER задан, сразу загружает GLPI в iframe."
   (if debug-user
-      ;; Режим debug: сразу показываем iframe с GLPI
+      ;; Режим debug: редирект с переданным пользователем
       (format nil
               "<!DOCTYPE html>
-<html lang=\"ru\">
-<head>
-    <meta charset=\"UTF-8\">
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-    <title>GLPI в iframe</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { width: 100%; height: 100%; overflow: hidden; }
-        iframe { display: block; width: 100%; height: 100%; border: none; }
-    </style>
-</head>
+<html>
+<head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title></head>
 <body>
-    <iframe id=\"glpiFrame\" title=\"GLPI\"></iframe>
     <script>
         var user = \"~a\";
-        alert('Debug mode: loading GLPI for user ' + user);
-        document.getElementById('glpiFrame').src = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
+        alert('Debug mode: redirecting to GLPI for user ' + user);
+        window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
     </script>
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим: получаем пользователя из Битрикс24, затем загружаем iframe
+      ;; Обычный режим: получаем пользователя из Битрикс24
       (format nil
               "<!DOCTYPE html>
-<html lang=\"ru\">
-<head>
-    <meta charset=\"UTF-8\">
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-    <title>GLPI в iframe + Битрикс24</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { width: 100%; height: 100%; overflow: hidden; }
-        iframe { display: block; width: 100%; height: 100%; border: none; }
-    </style>
-    <script src=\"//api.bitrix24.com/api/v1/\"></script>
+<html>
+<head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title>
+<script src=\"//api.bitrix24.com/api/v1/\"></script>
 </head>
 <body>
-    <iframe id=\"glpiFrame\" title=\"GLPI\"></iframe>
     <script>
-        function loadGLPI(login) {
+        function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            document.getElementById('glpiFrame').src = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
         }
         (function() {
             if (window.self === window.top) {
-                loadGLPI('jopa');
+                redirectToGLPI('jopa');
             } else if (typeof BX24 === 'undefined') {
-                loadGLPI('jopa');
+                redirectToGLPI('jopa');
             } else {
                 var timeout = setTimeout(function() {
-                    loadGLPI('jopa');
+                    redirectToGLPI('jopa');
                 }, 3000);
                 BX24.init(function() {
                     clearTimeout(timeout);
                     BX24.installFinish();
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
-                            loadGLPI('jopa');
+                            redirectToGLPI('jopa');
                             return;
                         }
                         var user = result.data();
                         var login = user.LOGIN || user.EMAIL || user.ID;
-                        loadGLPI(login || 'jopa');
+                        redirectToGLPI(login || 'jopa');
                     });
                 });
             }
@@ -493,6 +473,10 @@
     </script>
 </body>
 </html>")))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (chat-html debug-user))
 
 ; (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
 ;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
