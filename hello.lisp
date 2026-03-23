@@ -417,9 +417,77 @@
 
 
 ;; var 3
+; (defun chat-html (&optional debug-user)
+;   (if debug-user
+;       ;; Режим debug: редирект с переданным пользователем (с алертом)
+;       (format nil
+;               "<!DOCTYPE html>
+; <html>
+; <head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title></head>
+; <body>
+;     <script>
+;         var user = \"~a\";
+;         alert('Debug mode: redirecting to GLPI for user ' + user);
+;         window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
+;     </script>
+; </body>
+; </html>"
+;               debug-user)
+;       ;; Обычный режим: получаем пользователя из Битрикс24 (с алертами для отладки)
+;       (format nil
+;               "<!DOCTYPE html>
+; <html>
+; <head><meta charset=\"UTF-8\"><title>Перенаправление в GLPI</title>
+; <script src=\"//api.bitrix24.com/api/v1/\"></script>
+; </head>
+; <body>
+;     <script>
+;         function redirectToGLPI(login) {
+;             if (!login) login = 'jopa';
+;             alert('Redirecting to GLPI with user: ' + login);
+;             window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+;         }
+;         (function() {
+;             alert('Start of script');
+;             if (window.self === window.top) {
+;                 alert('Not in iframe, using fallback');
+;                 redirectToGLPI('jopa');
+;             } else if (typeof BX24 === 'undefined') {
+;                 alert('BX24 undefined, using fallback');
+;                 redirectToGLPI('jopa');
+;             } else {
+;                 alert('BX24 found, setting timeout');
+;                 var timeout = setTimeout(function() {
+;                     alert('Timeout, using fallback');
+;                     redirectToGLPI('jopa');
+;                 }, 3000);
+;                 BX24.init(function() {
+;                     alert('BX24 initialized');
+;                     clearTimeout(timeout);
+;                     BX24.installFinish();
+;                     BX24.callMethod('user.current', {}, function(result) {
+;                         if (result.error()) {
+;                             alert('Error getting user: ' + result.error());
+;                             redirectToGLPI('jopa');
+;                             return;
+;                         }
+;                         var user = result.data();
+;                         var login = user.LOGIN || user.EMAIL || user.ID;
+;                         alert('Got user from Bitrix: ' + login);
+;                         redirectToGLPI(login || 'jopa');
+;                     });
+;                 });
+;             }
+;         })();
+;     </script>
+; </body>
+; </html>")))
+
+
 (defun chat-html (&optional debug-user)
+  "Генерирует HTML для /chat. Если DEBUG-USER задан, используется он (без BX24)."
   (if debug-user
-      ;; Режим debug: редирект с переданным пользователем (с алертом)
+      ;; Режим debug: открываем GLPI в новой вкладке
       (format nil
               "<!DOCTYPE html>
 <html>
@@ -427,13 +495,13 @@
 <body>
     <script>
         var user = \"~a\";
-        alert('Debug mode: redirecting to GLPI for user ' + user);
-        window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
+        alert('Debug mode: opening GLPI for user ' + user);
+        window.open('https://glpi.romach.space/?user=' + encodeURIComponent(user), '_blank');
     </script>
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим: получаем пользователя из Битрикс24 (с алертами для отладки)
+      ;; Обычный режим: получаем пользователя из Битрикс24 и открываем GLPI в новой вкладке
       (format nil
               "<!DOCTYPE html>
 <html>
@@ -444,36 +512,28 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            alert('Redirecting to GLPI with user: ' + login);
-            window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            alert('Opening GLPI for user: ' + login);
+            window.open('https://glpi.romach.space/?user=' + encodeURIComponent(login), '_blank');
         }
         (function() {
-            alert('Start of script');
             if (window.self === window.top) {
-                alert('Not in iframe, using fallback');
                 redirectToGLPI('jopa');
             } else if (typeof BX24 === 'undefined') {
-                alert('BX24 undefined, using fallback');
                 redirectToGLPI('jopa');
             } else {
-                alert('BX24 found, setting timeout');
                 var timeout = setTimeout(function() {
-                    alert('Timeout, using fallback');
                     redirectToGLPI('jopa');
                 }, 3000);
                 BX24.init(function() {
-                    alert('BX24 initialized');
                     clearTimeout(timeout);
                     BX24.installFinish();
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
-                            alert('Error getting user: ' + result.error());
                             redirectToGLPI('jopa');
                             return;
                         }
                         var user = result.data();
                         var login = user.LOGIN || user.EMAIL || user.ID;
-                        alert('Got user from Bitrix: ' + login);
                         redirectToGLPI(login || 'jopa');
                     });
                 });
@@ -483,9 +543,6 @@
 </body>
 </html>")))
 
-(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
-  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (chat-html debug-user))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
@@ -495,9 +552,13 @@
 ;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
 ;   (chat-html debug-user))
 
-(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
-  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (chat-html debug-user))
+; (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+;   (chat-html debug-user))
+
+; (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+;   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+;   (chat-html debug-user))
 
 
 ;;;                     https://glpi.romach.space/app/chat?debug-user=junglefromlondon@yandex.ru
