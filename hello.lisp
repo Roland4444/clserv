@@ -251,7 +251,10 @@
 
 (defun chat-html (&optional debug-user)
   "Генерирует HTML для страницы /chat. Если DEBUG-USER задан, он будет использован как фиксированный логин."
-  (let ((html (format nil "
+  (let ((debug-value (if debug-user
+                         (format nil "'~a'" (cl-ppcre:regex-replace-all "'" debug-user "\\'"))
+                         "null")))
+    (format nil "
 <!DOCTYPE html>
 <html lang=\"ru\">
 <head>
@@ -264,17 +267,16 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
-            // Предварительно сбрасываем сессию GLPI, если нужно (опционально)
+            // Предварительно сбрасываем сессию GLPI
             fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
                 method: 'GET',
                 credentials: 'include'
-            }).finally(() => {
+            }).finally(function() {
                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
             });
         }
 
-        // Если задан параметр debug_user — используем его сразу
-        var debugUser = ~a;  /* подставим значение из параметра */
+        var debugUser = %s;
         if (debugUser && debugUser !== '') {
             console.log('Debug mode: using user', debugUser);
             redirectToGLPI(debugUser);
@@ -307,11 +309,12 @@
         }
     </script>
 </body>
-</html>"
-      (if debug-user
-          (format nil "'~a'" (cl-ppcre:regex-replace-all "'" debug-user "\\'"))
-          "null"))))
-  html))
+</html>" debug-value)))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+  "Обработчик страницы /chat. Параметр debug-user (опциональный) — имя пользователя для принудительного входа."
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (chat-html debug-user))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   "Обработчик страницы /chat. Параметр debug-user (опциональный) — имя пользователя для принудительного входа."
