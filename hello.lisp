@@ -279,7 +279,7 @@
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим: с BX24
+      ;; Обычный режим: с BX24 и installFinish
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
@@ -311,6 +311,7 @@
                 }, 3000);
                 BX24.init(function() {
                     clearTimeout(timeout);
+                    BX24.installFinish();   // <-- завершаем установку
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
                             redirectToGLPI('jopa');
@@ -332,7 +333,7 @@
   (chat-html debug-user))
 
 
-
+;;;                     https://glpi.romach.space/app/chat?debug-user=junglefromlondon@yandex.ru
 
 (defun test-chat-html ()
   "Тестирует генерацию HTML для /chat с параметром debug-user."
