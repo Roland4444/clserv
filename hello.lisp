@@ -190,14 +190,14 @@
 
 
 
-(defun chat-html ()
-  (let ((path "static/chat.html"))
-    (if (probe-file path)
-        (with-open-file (f path :direction :input)
-          (let ((content (make-string (file-length f))))
-            (read-sequence content f)
-            content))
-        "<h1>ERROR: chat.html not found</h1>")))
+; (defun chat-html ()
+;   (let ((path "static/chat.html"))
+;     (if (probe-file path)
+;         (with-open-file (f path :direction :input)
+;           (let ((content (make-string (file-length f))))
+;             (read-sequence content f)
+;             content))
+;         "<h1>ERROR: chat.html not found</h1>")))
 
 ;;; Хендлеры
 (hunchentoot:define-easy-handler (index :uri "/") ()
@@ -248,9 +248,80 @@
 (hunchentoot:define-easy-handler (google-redirect :uri "/google") ()
   (hunchentoot:redirect "https://romach.space/chat"))
 
-(hunchentoot:define-easy-handler (chat :uri "/chat") ()
-  (setf (hunchentoot:content-type*) "text/html")
-  (chat-html))
+
+(defun chat-html (&optional debug-user)
+  "Генерирует HTML для страницы /chat. Если DEBUG-USER задан, он будет использован как фиксированный логин."
+  (let ((html (format nil "
+<!DOCTYPE html>
+<html lang=\"ru\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Перенаправление в GLPI</title>
+    <script src=\"//api.bitrix24.com/api/v1/\"></script>
+</head>
+<body>
+    <script>
+        function redirectToGLPI(login) {
+            if (!login) login = 'jopa';
+            // Предварительно сбрасываем сессию GLPI, если нужно (опционально)
+            fetch('https://glpi.romach.space/front/logout.php?noAUTO=1', {
+                method: 'GET',
+                credentials: 'include'
+            }).finally(() => {
+                window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            });
+        }
+
+        // Если задан параметр debug_user — используем его сразу
+        var debugUser = ~a;  /* подставим значение из параметра */
+        if (debugUser && debugUser !== '') {
+            console.log('Debug mode: using user', debugUser);
+            redirectToGLPI(debugUser);
+        } else {
+            // Обычный режим: работаем через Битрикс24
+            if (window.self === window.top) {
+                redirectToGLPI('jopa');
+            } else if (typeof BX24 === 'undefined') {
+                redirectToGLPI('jopa');
+            } else {
+                var timeout = setTimeout(function() {
+                    console.log('Таймаут Битрикс24, резервный пользователь');
+                    redirectToGLPI('jopa');
+                }, 3000);
+
+                BX24.init(function() {
+                    clearTimeout(timeout);
+                    BX24.callMethod('user.current', {}, function(result) {
+                        if (result.error()) {
+                            console.error('Ошибка получения пользователя:', result.error());
+                            redirectToGLPI('jopa');
+                            return;
+                        }
+                        var user = result.data();
+                        var login = user.LOGIN || user.EMAIL || user.ID;
+                        redirectToGLPI(login || 'jopa');
+                    });
+                });
+            }
+        }
+    </script>
+</body>
+</html>"
+      (if debug-user
+          (format nil "'~a'" (cl-ppcre:regex-replace-all "'" debug-user "\\'"))
+          "null"))))
+  html))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+  "Обработчик страницы /chat. Параметр debug-user (опциональный) — имя пользователя для принудительного входа."
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (chat-html debug-user))
+
+
+; (hunchentoot:define-easy-handler (chat :uri "/chat") ()
+;   (setf (hunchentoot:content-type*) "text/html")
+;   (chat-html))
  ;;(let  ((target "https://glpi.upshepard.ru/Helpdesk"))
  ;;(hunchentoot:redirect target)))
   
