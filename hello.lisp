@@ -334,9 +334,8 @@
 ;;;   ==>  xhr minimal
 
 (defun chat-html (&optional debug-user)
-  "Генерирует HTML для /chat. Если DEBUG-USER задан, используется он (без BX24)."
   (if debug-user
-      ;; Режим debug – делаем logout
+      ;; Режим debug – делаем logout с алертами
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
@@ -349,10 +348,16 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
+            alert('DEBUG: Выполняется logout');
             var xhr = new XMLHttpRequest();
             xhr.open('GET', 'https://glpi.romach.space/front/logout.php?noAUTO=1', true);
             xhr.withCredentials = true;
-            xhr.onload = xhr.onerror = function() {
+            xhr.onload = function() {
+                alert('DEBUG: logout завершён, редирект на GLPI');
+                window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+            };
+            xhr.onerror = function() {
+                alert('DEBUG: Ошибка logout, всё равно редирект');
                 window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
             };
             xhr.send();
@@ -364,7 +369,7 @@
 </body>
 </html>"
               debug-user)
-      ;; Обычный режим – без logout, просто редирект с пользователем из Битрикс24
+      ;; Обычный режим – без logout, но с алертом
       (format nil
               "<!DOCTYPE html>
 <html lang=\"ru\">
@@ -378,6 +383,7 @@
     <script>
         function redirectToGLPI(login) {
             if (!login) login = 'jopa';
+            alert('NORMAL: Редирект на GLPI без logout');
             window.location.href = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
         }
         (function() {
@@ -407,8 +413,6 @@
     </script>
 </body>
 </html>")))
-
-
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
