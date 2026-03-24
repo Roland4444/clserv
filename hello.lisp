@@ -7,9 +7,6 @@
 (asdf:load-system :dexador)
 (asdf:load-system :cl-base64)
 
-
-
-
 ;; Настройки Hunchentoot для поддержки больших файлов
 
 (defpackage :hello

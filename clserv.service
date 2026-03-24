@@ -1,0 +1,16 @@
+[Unit]
+Description=CL start serv
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/clserv
+ExecStart=/root/clserv/hello-server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+
