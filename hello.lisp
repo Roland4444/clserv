@@ -346,7 +346,7 @@
 </head>
 <body></body>
 </html>")))
-
+;;;;;; ECMACS COMMENT   extend
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
   (chat-html debug-user))
