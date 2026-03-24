@@ -1,0 +1,103 @@
+/var/www/html/glpi/config/config.php
+
+""""""""""""""""""""""""""""
+<?php
+ini_set('session.cookie_samesite', 'None');
+ini_set('session.cookie_secure', true);
+
+
+
+""""""""""""""""""""""""""""
+
+
+
+
+
+
+
+
+sudo a2enmod setenvif
+sudo a2enmod headers
+sudo systemctl reload apache2
+sudo a2enmod setenvif
+
+
+
+
+
+GLPI NGINX.config on evgen shepard
+////////////////////////////////////////////
+server {
+    server_name glpi.upshepard.ru;
+    root /var/www/glpi/public;
+
+    access_log /var/log/nginx/glpi_access.log;
+    error_log /var/log/nginx/glpi_error.log;
+
+    location / {
+        try_files $uri /index.php$is_args$args;
+    }
+
+    location ~ ^/index\.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_read_timeout 600;
+    }
+
+    # Обработка PHP в плагинах
+    location ~ ^/plugins/.*\.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_split_path_info ^(.+\.php)(/.*)$;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_read_timeout 600;
+    }
+
+    # Запрет доступа к скрытым файлам
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Запрет доступа к конфиденциальным директориям (кроме плагинов)
+    location ~ ^/(config|files|templates)/.*\.(php|phar)$ {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Кэширование статических файлов
+    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    listen [::]:443 ssl ipv6only=on;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/live/glpi.upshepard.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/glpi.upshepard.ru/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
+    if ($host = glpi.upshepard.ru) {
+        return 301 https://$host$request_uri;
+    }
+
+    listen 80;
+    listen [::]:80;
+    server_name glpi.upshepard.ru;
+    return 404;
+}
+//////////////////////////////////////////////////////////
+
+
+
+
+
