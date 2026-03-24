@@ -251,127 +251,6 @@
 
 
 ;; ios button only
-(defun chat-html (&optional debug-user)
-  (if debug-user
-      ;; Режим отладки
-      (format nil
-              "<!DOCTYPE html>
-<html>
-<head><meta charset=\"UTF-8\"><title>GLPI</title>
-<style>body,html{margin:0;padding:0;height:100%}</style>
-<script>
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    var user = \"~a\";
-    var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
-    if (isIOS) {
-        document.write('<link rel=\"stylesheet\" href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css\">');
-        document.write('<div style=\"text-align:center; margin-top:50px;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-    } else {
-        document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-    }
-</script>
-</head>
-<body></body>
-</html>"
-              debug-user)
-      ;; Обычный режим
-      (format nil
-              "<!DOCTYPE html>
-<html>
-<head><meta charset=\"UTF-8\"><title>GLPI</title>
-<style>body,html{margin:0;padding:0;height:100%}</style>
-<script src=\"//api.bitrix24.com/api/v1/\"></script>
-<script>
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    function showButton(login) {
-        var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-        var container = document.body;
-        container.innerHTML = '';
-        var link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.className = 'btn btn-danger btn-lg';
-        link.textContent = 'Войти';
-        link.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);';
-        container.appendChild(link);
-        // Подключаем Bootstrap CSS, если его нет
-        if (!document.querySelector('link[href*=\"bootstrap\"]')) {
-            var bootstrapCss = document.createElement('link');
-            bootstrapCss.rel = 'stylesheet';
-            bootstrapCss.href = 'https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css';
-            document.head.appendChild(bootstrapCss);
-        }
-    }
-
-    function showIframe(login) {
-        var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-        document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-    }
-
-    function loadGLPI(login) {
-        if (!login) login = 'jopa';
-        if (isIOS) {
-            showButton(login);
-        } else {
-            showIframe(login);
-        }
-    }
-
-    (function() {
-        if (window.self === window.top) {
-            loadGLPI('jopa');
-        } else if (typeof BX24 === 'undefined') {
-            loadGLPI('jopa');
-        } else {
-            var timeout = setTimeout(function() {
-                loadGLPI('jopa');
-            }, 3000);
-            BX24.init(function() {
-                clearTimeout(timeout);
-                BX24.installFinish();
-                BX24.callMethod('user.current', {}, function(result) {
-                    if (result.error()) {
-                        loadGLPI('jopa');
-                        return;
-                    }
-                    var user = result.data();
-                    var login = user.LOGIN || user.EMAIL || user.ID;
-                    loadGLPI(login || 'jopa');
-                });
-            });
-        }
-    })();
-</script>
-</head>
-<body></body>
-</html>")))
-;;;;;; ECMACS COMMENT   extend
-(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
-  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (chat-html debug-user))
-
-(defun test-chat-html ()
-  "Тестирует генерацию HTML для /chat с параметром debug-user."
-  (let* ((test-user "junglefromlondon@yandex.ru")
-         (html (chat-html test-user))
-         (no-bx24 (not (search "api.bitrix24.com" html)))
-         (has-debug-user (search test-user html))
-         (has-alert (search "alert('Debug mode: using user " html))
-         (has-format-placeholder (search "%s" html)))
-    (format t "~%=== Тест обработчика /chat ===~%")
-    (format t "HTML длина: ~A~%" (length html))
-    (format t "Не загружен BX24? ~A~%" no-bx24)
-    (format t "Содержит debug-user '~A'? ~A~%" test-user (not (null has-debug-user)))
-    (format t "Содержит alert? ~A~%" (not (null has-alert)))
-    (format t "Содержит %s? ~A~%" (not (null has-format-placeholder)))
-    (format t "~%Первые 3500 символов HTML:~%~A~%" (subseq html 0 (min 3500 (length html))))
-    (assert no-bx24 nil "Ошибка: BX24 загружается в debug-режиме")
-    (assert has-debug-user nil "Ошибка: параметр debug-user не вставлен")
-    (assert has-alert nil "Ошибка: alert не найден")
-    (assert (not has-format-placeholder) nil "Ошибка: в HTML остался %s")
-    (format t "~%Тест пройден успешно!~%")
-    t))
 
 
 ; (hunchentoot:define-easy-handler (chat :uri "/chat") ()
@@ -417,29 +296,92 @@
     (setf (hunchentoot:return-code*) 400)
     (return-from go-to-glpi "Missing login parameter"))
   (proxy-to-glpi login))
-
-
-(defun tradingview-html ()
-  "<!DOCTYPE html>
+;; IOS BUTTON ONLY + REORDER login users
+(defun chat-html (&optional debug-user)
+  (if debug-user
+      ;; Режим отладки: сразу кнопка для iOS, iframe для остальных
+      (format nil
+              "<!DOCTYPE html>
 <html>
-<head>
-    <meta charset=\"UTF-8\">
-    <title>TradingView</title>
-    <style>
-        body, html { margin: 0; padding: 0; height: 100%; }
-        iframe { width: 100%; height: 100%; border: none; }
-    </style>
+<head><meta charset=\"UTF-8\"><title>GLPI</title>
+<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
+<style>body,html{margin:0;padding:0;height:100%}</style>
+<script>
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    var user = \"~a\";
+    var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
+    if (isIOS) {
+        document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
+    } else {
+        document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
+    }
+</script>
 </head>
-<body>
-    <iframe src=\"https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BTCUSD&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=dark&style=1&timezone=exchange&withdateranges=1&hideideas=1&hideideas=1&allow_symbol_change=1&saveimage=1&details=1&hotlist=1&calendar=1&news=1&noheader=0\"
-            title=\"TradingView Widget\"></iframe>
-</body>
-</html>")
+<body></body>
+</html>"
+              debug-user)
+      ;; Обычный режим: получаем пользователя из Битрикс24
+      (format nil
+              "<!DOCTYPE html>
+<html>
+<head><meta charset=\"UTF-8\"><title>GLPI</title>
+<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
+<style>body,html{margin:0;padding:0;height:100%}</style>
+<script src=\"//api.bitrix24.com/api/v1/\"></script>
+<script>
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-(hunchentoot:define-easy-handler (tradingview :uri "/tradingview") ()
+    function showButton(login) {
+        var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+        document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
+    }
+
+    function showIframe(login) {
+        var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
+        document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
+    }
+
+    function loadGLPI(login) {
+        if (!login) login = 'jopa';
+        if (isIOS) {
+            showButton(login);
+        } else {
+            showIframe(login);
+        }
+    }
+
+    (function() {
+        if (window.self === window.top) {
+            loadGLPI('jopa');
+        } else if (typeof BX24 === 'undefined') {
+            loadGLPI('jopa');
+        } else {
+            var timeout = setTimeout(function() {
+                loadGLPI('jopa');
+            }, 3000);
+            BX24.init(function() {
+                clearTimeout(timeout);
+                BX24.installFinish();
+                BX24.callMethod('user.current', {}, function(result) {
+                    if (result.error()) {
+                        loadGLPI('jopa');
+                        return;
+                    }
+                    var user = result.data();
+                    var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
+                    loadGLPI(login || 'jopa');
+                });
+            });
+        }
+    })();
+</script>
+</head>
+<body></body>
+</html>")))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (tradingview-html))
-
+  (chat-html debug-user))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
@@ -527,43 +469,6 @@
       (format log-stream "[~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d] ~a~%"
               year month day hour minute second data))))
 
-; (defun send-to-bitrix (data)
-;   (let ((url (gethash :bitrix-url *config*))
-;         (responsible-alist (gethash :bitrix-responsible *config*))
-;         (category (cdr (assoc :category data)))
-;         (title (or (cdr (assoc :title data)) "Без темы"))
-;         (description (or (cdr (assoc :description data)) "")))
-;     (unless url
-;       (error "Bitrix URL не настроен в конфигурации"))
-;     ;; Определяем ответственного по категории, если не найдено — используем 1
-;     (let* ((responsible-id
-;              (if responsible-alist
-;                  (or (cdr (assoc category responsible-alist :test #'string=)) 1)
-;                  1))
-;            (payload `(("fields" .
-;                        (("TITLE" . ,title)
-;                         ("DESCRIPTION" . ,description)
-;                         ("RESPONSIBLE_ID" . ,responsible-id)
-;                         ("CREATED_BY" . 1)
-;                         ("ACCOMPLICES" . (14))
-;                         ("AUDITORS" . (26))
-;                         ("DEADLINE" . "2025-03-10T18:00:00+03:00")
-;                         ("PRIORITY" . 2)   ; можно позже заменить на priority из data
-;                         ("GROUP_ID" . 10)))))
-;           (json-payload (cl-json:encode-json-to-string payload)))
-;       (handler-case
-;           (let* ((response (dex:post url
-;                                       :content-type "application/json"
-;                                       :content json-payload
-;                                       :want-string t))
-;                  (body (car response))
-;                  (status (cdr response)))
-;             (format t "~%Bitrix ответ (статус ~A): ~A~%" status body)
-;             (when (>= status 400)
-;               (error "Bitrix request failed with status ~A" status)))
-;         (dex:http-request-failed (e)
-;           (format t "~%Ошибка HTTP при отправке в Bitrix: ~A~%" e)
-;           (error e))))))    
 ;                              ______     _________ ________
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;| __|__|  || ______   | ______| ||   \\  //
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;||______  ||   ||     ||\ \     ||    \\//
@@ -1236,49 +1141,6 @@
     result))
       ; теперь result вн
 
-
-; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-;   (let* ((original-uri (hunchentoot:request-uri*))
-;          (relative-path (subseq original-uri (length "/glpi")))
-;          (target-url (concatenate 'string 
-;                                    "https://glpi.upshepard.ru" 
-;                                    (if (string= relative-path "") "/" relative-path)))
-;          (method (hunchentoot:request-method*))
-;          (content (hunchentoot:raw-post-data :force-binary t)))
-;     (format t "~%>>> GLPI PROXY CALLED with path: ~A -> ~A~%" original-uri target-url)
-;     (force-output)
-;     (multiple-value-bind (body status headers)
-;         (dex:request target-url
-;                      :method method
-;                      :headers `(("REMOTE_USER" . "post-only"))   ; изменил на REMOTE_USER
-;                      :content content
-;                      :want-stream nil
-;                      :force-binary t)
-;       (setf (hunchentoot:return-code*) status)
-;       ;; Копируем заголовки, исключая Content-Length и Transfer-Encoding
-;       (maphash (lambda (name value)
-;                  (unless (member (string-downcase name) 
-;                                  '("content-length" "transfer-encoding") 
-;                                  :test #'string=)
-;                    (setf (hunchentoot:header-out name) value)))
-;                headers)
-;       ;; Определяем тип содержимого
-;       (let* ((content-type (gethash "content-type" headers))
-;              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-;         ;; Отладочный вывод
-;         (format t "    Content-Type: ~A~%" content-type)
-;         (cond
-;           ((and content-type (search "text/html" content-type :test #'char-equal))
-;            (format t "    HTML detected, applying link replacement...~%")
-;            (let ((modified (replace-html-links body-string)))
-;              (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
-;              (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
-;              modified))
-;           (t
-;            (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
-;            body-string))))))
-
-
 (defun get-glpi-username()
 (or (hunchentoot:session-value :glpi-user) "jopa");;"post-only")
 )
@@ -1336,88 +1198,6 @@
                headers)
       ;; Возвращаем тело
       (if (stringp body) body (babel:octets-to-string body :encoding :utf-8)))))
-
-; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-;   (format t "~%>>> GLPI PROXY CALLED with path: ~A~%" (hunchentoot:request-uri*))
-;   (force-output)
-;   (let* ((user-login (get-glpi-username))
-;          (original-uri (hunchentoot:request-uri*))
-;          (relative-path (subseq original-uri (length "/glpi")))
-;          (target-url (concatenate 'string 
-;                                    "http://127.0.0.1:8080" 
-;                                    (if (string= relative-path "") "/" relative-path)))
-;          (method (hunchentoot:request-method*))
-;          (content (hunchentoot:raw-post-data :force-binary t)))
-;     (format t "    target-url: ~A~%" target-url)
-;     (force-output)
-;     (multiple-value-bind (body status headers)
-;         (dex:request target-url
-;                      :method method
-;                      :headers `(("X-Forwarded-User" . ,user-login)
-;                                 ("Host" . "glpi.romach.space"))  ; добавляем Host
-;                      :content content
-;                      :want-stream nil
-;                      :force-binary t)
-;       (setf (hunchentoot:return-code*) status)
-;       (maphash (lambda (name value)
-;                  (unless (member (string-downcase name) 
-;                                  '("content-length" "transfer-encoding") 
-;                                  :test #'string=)
-;                    (setf (hunchentoot:header-out name) value)))
-;                headers)
-;       (let* ((content-type (gethash "content-type" headers))
-;              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-;         (cond
-;           ((and content-type (search "text/html" content-type :test #'char-equal))
-;            (format t "    HTML detected, applying link replacement...~%")
-;            (let ((modified (replace-html-links body-string)))
-;              (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
-;              (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
-;              modified))
-;           (t
-;            (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
-;            body-string))))))
-
-
- 
-
-; (hunchentoot:define-easy-handler (glpi-proxy :uri "/glpi") ()
-;   (let* ((original-uri (hunchentoot:request-uri*))
-;          (relative-path (subseq original-uri (length "/glpi")))
-;          (target-url (concatenate 'string 
-;                                    "http://127.0.0.1:8080" 
-;                                    (if (string= relative-path "") "/" relative-path)))
-;          (method (hunchentoot:request-method*))
-;          (content (hunchentoot:raw-post-data :force-binary t)))
-;     (format t "~%>>> GLPI PROXY CALLED with path: ~A -> ~A~%" original-uri target-url)
-;     (force-output)
-;     (multiple-value-bind (body status headers)
-;         (dex:request target-url
-;                      :method method
-;                      :headers `(("REMOTE_USER" . "post-only"))
-;                      :content content
-;                      :want-stream nil
-;                      :force-binary t)
-;       (setf (hunchentoot:return-code*) status)
-;       (maphash (lambda (name value)
-;                  (unless (member (string-downcase name) 
-;                                  '("content-length" "transfer-encoding") 
-;                                  :test #'string=)
-;                    (setf (hunchentoot:header-out name) value)))
-;                headers)
-;       (let* ((content-type (gethash "content-type" headers))
-;              (body-string (if (stringp body) body (babel:octets-to-string body :encoding :utf-8))))
-;         (format t "    Content-Type: ~A~%" content-type)
-;         (cond
-;           ((and content-type (search "text/html" content-type :test #'char-equal))
-;            (format t "    HTML detected, applying link replacement...~%")
-;            (let ((modified (replace-html-links body-string)))
-;              (format t "    First 200 chars of modified HTML:~%~A~%" (subseq modified 0 (min 200 (length modified))))
-;              (setf (hunchentoot:content-length*) (length (babel:string-to-octets modified :encoding :utf-8)))
-;              modified))
-;           (t
-;            (format t "    Not HTML, returning as is (length ~D)~%" (length body-string))
-;            body-string))))))
 
 
 (push (hunchentoot:create-prefix-dispatcher "/glpi" 'glpi-proxy)
