@@ -1552,3 +1552,4 @@
 ;; sbcl --load hello.lisp      --eval '(hello:test-id)'
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-chat-html)'
+;; (:GLPI-BASE-URL . "https://glpi.upshepard.ru") 
