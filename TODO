@@ -101,3 +101,28 @@ server {
 
 
 
+glpi
+Fynfyfyfhbde30!0_
+
+
+
+
+sudo tee /var/www/glpi/public/.htaccess > /dev/null << 'EOF'
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule . /index.php [L]
+</IfModule>
+EOF
+
+
+
+https://glpi.romach.space/app/chat
+
+https://glpi.upshepard.ru/app/chat
+
+
+
+glpi.upshepard.ru
