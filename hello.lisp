@@ -14,7 +14,7 @@
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
-  #:test-headers-simple   #:test-chat-html))
+  #:test-headers-simple   #:test-chat-html  #:send-btrx24-chat))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
 
@@ -1143,6 +1143,21 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun send-btrx24-chat (webhook-url dialog-id message)
+"SEND MESSAGE"
+
+(let* ((url (concatenate 'string webhook-url "im.message.add"))
+    (payload (cl-json:encode-json-to-string
+                `((DIALOG_ID .  ,dialog-id)
+                  (MESSAGE   .  ,message)))))
+  (multiple-value-bind (body status)
+    (dex:post url
+            :content payload
+            :headers '(("Content-Type" . "application/json")))
+    (if (= status 200)
+        (cl-json:decode-json-from-string body)
+        (error "HTTP error ~A: ~A" sttaus body)))))
 
 (defun process-requestzzzzz (request-dir)
   (unless (typep request-dir 'pathname)
