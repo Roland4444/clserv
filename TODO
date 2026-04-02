@@ -1,3 +1,23 @@
+
+sudo apt-get update
+sudo apt-get install git
+sudo apt-get install sbcl
+git clone https://github.com/Roland4444/clserv
+git clone https://github.com/Roland4444/common-lisp
+sudo apt-get install libpcre3-dev libssl-dev perl make build-essential curl
+sudo apt-get install apache2
+sudo apt install -y zlib1g-dev
+
+tar -xvf openresty-VERSION.tar.gz
+cd openresty-VERSION/
+./configure -j2
+make -j2
+sudo make install
+
+echo 'export PATH=/usr/local/openresty/bin:$PATH' >> ~/.bashrc
+
+
+
 /var/www/html/glpi/config/config.php
 
 """"""""""""""""""""""""""""
@@ -119,6 +139,44 @@ EOF
 
 
 
+
+LOGS
+==============================================
+
+sudo mkdir -p /var/log/openresty
+sudo touch /var/log/openresty/reqs.log
+sudo chmod 666 /var/log/openresty/reqs.log
+
+
+
+ZABBIX
+
+
+root@cv6060203:~/clserv# ls -la /var/run/php/zabbix.sock
+srw-rw---- 1 www-data www-data 0 Apr  1 14:38 /var/run/php/zabbix.sock
+root@cv6060203:~/clserv# sudo usermod -a -G www-data nobody
+root@cv6060203:~/clserv# groups nobody
+nobody : nogroup www-data
+root@cv6060203:~/clserv# systemctl start openresty
+root@cv6060203:~/clserv# systemctl enable openresty
+Created symlink /etc/systemd/system/multi-user.target.wants/openresty.service → /etc/systemd/system/openresty.
+root@cv6060203:~/clserv# systemctl disable nginx
+Synchronizing state of nginx.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+Executing: /usr/lib/systemd/systemd-sysv-install disable nginx
+Removed "/etc/systemd/system/multi-user.target.wants/nginx.service".
+
+
+
+
+
+
+
+
+
+
+
+
+
 https://glpi.romach.space/app/chat
 
 https://glpi.upshepard.ru/app/chat
@@ -126,5 +184,4 @@ https://glpi.upshepard.ru/app/chat
 
 
 glpi.upshepard.ru
-
 
