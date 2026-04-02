@@ -300,6 +300,9 @@
 (defun chat-html (&optional debug-user)
   (let ((glpi-base-url (gethash :glpi-base-url *config* "https://glpi.upshepard.ru"))
         (glpi-suffix (gethash :glpi-suffix *config* "")))
+        
+        (format t "~%debug-user = ~S~%" debug-user)
+
     (format nil
             "<!DOCTYPE html>
 <html>
