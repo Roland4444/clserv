@@ -16,7 +16,7 @@ sudo make install
 
 echo 'export PATH=/usr/local/openresty/bin:$PATH' >> ~/.bashrc
 
-
+GLPI 11.0.6
 
 /var/www/html/glpi/config/config.php
 
@@ -121,8 +121,6 @@ server {
 
 
 
-glpi
-Fynfyfyfhbde30!0_
 
 
 

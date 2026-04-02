@@ -296,90 +296,158 @@
   (proxy-to-glpi login))
 ;; IOS BUTTON ONLY + REORDER login users
 ;; tuned param
+
 (defun chat-html (&optional debug-user)
-  (let ((glpi-base-url (gethash :glpi-base-url *config* "https://glpi.upshepard.ru")))
-    (if debug-user
-        ;; Режим отладки
-        (format nil
-                "<!DOCTYPE html>
+  (let ((glpi-base-url (gethash :glpi-base-url *config* "https://glpi.upshepard.ru"))
+        (glpi-suffix (gethash :glpi-suffix *config* "")))
+    (format nil
+            "<!DOCTYPE html>
 <html>
 <head><meta charset=\"UTF-8\"><title>GLPI</title>
 <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
 <style>body,html{margin:0;padding:0;height:100%}</style>
-<script>
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    var user = \"~a\";
-    var url = '~a/?user=' + encodeURIComponent(user);
-    if (isIOS) {
-        document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-    } else {
-        document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-    }
-</script>
+~:[<script src=\"//api.bitrix24.com/api/v1/\"></script>~;~]
 </head>
-<body></body>
-</html>"
-                debug-user glpi-base-url)
-        ;; Обычный режим
-        (format nil
-                "<!DOCTYPE html>
-<html>
-<head><meta charset=\"UTF-8\"><title>GLPI</title>
-<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-<style>body,html{margin:0;padding:0;height:100%}</style>
-<script src=\"//api.bitrix24.com/api/v1/\"></script>
-<script>
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    var baseUrl = \"~a\";
+<body>
+    <script>
+        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        var baseUrl = \"~a\";
+        var suffix = \"~a\";
 
-    function showButton(login) {
-        var url = baseUrl + '/?user=' + encodeURIComponent(login);
-        document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-    }
-
-    function showIframe(login) {
-        var url = baseUrl + '/?user=' + encodeURIComponent(login);
-        document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-    }
-
-    function loadGLPI(login) {
-        if (!login) login = 'jopa';
-        if (isIOS) {
-            showButton(login);
-        } else {
-            showIframe(login);
+        function redirectToGLPI(login) {
+            var url = baseUrl + suffix + '?user=' + encodeURIComponent(login);
+            if (isIOS) {
+                document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
+            } else {
+                document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
+            }
         }
-    }
 
-    (function() {
-        if (window.self === window.top) {
-            loadGLPI('jopa');
-        } else if (typeof BX24 === 'undefined') {
-            loadGLPI('jopa');
-        } else {
-            var timeout = setTimeout(function() {
-                loadGLPI('jopa');
-            }, 3000);
-            BX24.init(function() {
-                clearTimeout(timeout);
-                BX24.installFinish();
-                BX24.callMethod('user.current', {}, function(result) {
-                    if (result.error()) {
-                        loadGLPI('jopa');
-                        return;
-                    }
-                    var user = result.data();
-                    var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
-                    loadGLPI(login || 'jopa');
-                });
-            });
-        }
-    })();
-</script>
-</head>
-<body></body>
+        ~:[
+            var debugUser = \"~a\";
+            redirectToGLPI(debugUser);
+        ~;
+            (function() {
+                if (window.self === window.top) {
+                    redirectToGLPI('jopa');
+                } else if (typeof BX24 === 'undefined') {
+                    redirectToGLPI('jopa');
+                } else {
+                    var timeout = setTimeout(function() { redirectToGLPI('jopa'); }, 3000);
+                    BX24.init(function() {
+                        clearTimeout(timeout);
+                        BX24.installFinish();
+                        BX24.callMethod('user.current', {}, function(result) {
+                            if (result.error()) {
+                                redirectToGLPI('jopa');
+                                return;
+                            }
+                            var user = result.data();
+                            var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
+                            redirectToGLPI(login || 'jopa');
+                        });
+                    });
+                }
+            })();
+        ~]
+    </script>
+</body>
 </html>"
-                glpi-base-url))))
+            (null debug-user)   ; если debug-user есть, не загружаем BX24
+            glpi-base-url
+            glpi-suffix
+            (not (null debug-user)) ; флаг для выбора блока
+            (if debug-user debug-user "")))) ; значение debug-user
+
+
+
+
+
+
+; (defun chat-html (&optional debug-user)
+;   (let ((glpi-base-url (gethash :glpi-base-url *config* "https://glpi.upshepard.ru")))
+;     (if debug-user
+;         ;; Режим отладки
+;         (format nil
+;                 "<!DOCTYPE html>
+; <html>
+; <head><meta charset=\"UTF-8\"><title>GLPI</title>
+; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
+; <style>body,html{margin:0;padding:0;height:100%}</style>
+; <script>
+;     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+;     var user = \"~a\";
+;     var url = '~a/?user=' + encodeURIComponent(user);
+;     if (isIOS) {
+;         document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
+;     } else {
+;         document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
+;     }
+; </script>
+; </head>
+; <body></body>
+; </html>"
+;                 debug-user glpi-base-url)
+;         ;; Обычный режим
+;         (format nil
+;                 "<!DOCTYPE html>
+; <html>
+; <head><meta charset=\"UTF-8\"><title>GLPI</title>
+; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
+; <style>body,html{margin:0;padding:0;height:100%}</style>
+; <script src=\"//api.bitrix24.com/api/v1/\"></script>
+; <script>
+;     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+;     var baseUrl = \"~a\";
+
+;     function showButton(login) {
+;         var url = baseUrl + '/?user=' + encodeURIComponent(login);
+;         document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
+;     }
+
+;     function showIframe(login) {
+;         var url = baseUrl + '/?user=' + encodeURIComponent(login);
+;         document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
+;     }
+
+;     function loadGLPI(login) {
+;         if (!login) login = 'jopa';
+;         if (isIOS) {
+;             showButton(login);
+;         } else {
+;             showIframe(login);
+;         }
+;     }
+
+;     (function() {
+;         if (window.self === window.top) {
+;             loadGLPI('jopa');
+;         } else if (typeof BX24 === 'undefined') {
+;             loadGLPI('jopa');
+;         } else {
+;             var timeout = setTimeout(function() {
+;                 loadGLPI('jopa');
+;             }, 3000);
+;             BX24.init(function() {
+;                 clearTimeout(timeout);
+;                 BX24.installFinish();
+;                 BX24.callMethod('user.current', {}, function(result) {
+;                     if (result.error()) {
+;                         loadGLPI('jopa');
+;                         return;
+;                     }
+;                     var user = result.data();
+;                     var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
+;                     loadGLPI(login || 'jopa');
+;                 });
+;             });
+;         }
+;     })();
+; </script>
+; </head>
+; <body></body>
+; </html>"
+;                 glpi-base-url))))
 
 
 ; (defun chat-html (&optional debug-user)
