@@ -388,3 +388,20 @@ curl -X GET "https://zakupay.sel-be.ru/api/v1/products?format=json" \
 <hr><center>nginx</center>
 </body>
 </html>
+
+
+
+
+curl -X 'GET' \
+  'https://zakupay-test.sel-be.ru/api/v1/api/v1/offers?format=xml&isoDate=true&page=1&pageSize=15&state=NEW&supplier=4503&showCompaniesWithSameITN=true&payer=7645&acceptor=86&project=897&paymentNumber=%25e2%2584%2596123&producerOfferNumber=%D0%BD%D0%BE%D0%BC%D0%B5%D1%80&category=54&orderId=123&orderResponsible=123&saver=123&acceptSender=123&currency=643&zakupayIds=1157589&hasNonMainCurrency=true&chatLength=2&hasCompletedDeliveries=true&hasApprovedPayment=true&hasUnapprovedPayment=true&hasPayerNumber=true&paymentAmountFrom=100.23&paymentAmountTo=10000&creationDateFrom=2016-12-01&creationDateTo=2016-12-15&deliveryDateFrom=2016-12-01&deliveryDateTo=2016-12-15&paymentDateFrom=2016-12-01&paymentDateTo=2016-12-15&planPaymentDateFrom=2016-12-01&planPaymentDateTo=2016-12-01&offerDateFrom=2016-12-01&offerDateTo=2016-12-15&offerDelayFrom=15&offerDelayTo=100&acceptDateFrom=2016-12-01&acceptDateTo=2016-12-15&updateTimeFrom=2017-10-13%2012%3A37%3A56&updateTimeTo=2017-10-13%2012%3A37%3A56&changeAcceptedTrueTimeFrom=2017-10-13%2012%3A37%3A56&changeAcceptedTrueTimeTo=2017-10-13%2012%3A37%3A56&notState=true&notSupplier=true&notPayer=true&notAcceptor=true&notProject=true&notCategory=true&totalCount=true&include=projectHierarchy&sourceAccountType=1&type=CHECK&includeIconId=27&excludeIconId=23' \
+  -H 'accept: application/json' \
+  -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
+
+
+
+curl -X 'GET' \
+  'https://restetris.cynteka.ru/api/v1/api/v1/offers?format=xml' \
+  -H 'accept: application/json' \
+  -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
+
+  
