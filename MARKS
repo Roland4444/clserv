@@ -405,3 +405,5 @@ curl -X 'GET' \
   -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
 
   
+
+  curl --request GET --url 'https://restetris.cynteka.ru/api/v1/offers?count=10&state=DELETED' --header "accept: application/json" --header "ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6"
