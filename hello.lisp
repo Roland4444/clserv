@@ -14,7 +14,7 @@
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
-  #:test-headers-simple   #:test-chat-html  #:send-btrx24-chat  #:get-offers))
+  #:test-headers-simple   #:test-chat-html  #:send-btrx24-chat  #:get-offers     #:load-config))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
 
@@ -1291,18 +1291,18 @@
           (error "HTTP request failed with status ~A" status)))))
 
 
-(defun get-offers (&key (token "jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6")
-                        (count 10)
-                        (state "DELETED"))
-  "Выполняет GET-запрос к /api/v1/offers и возвращает декодированный JSON."
-  (let* ((url (format nil "https://restetris.cynteka.ru/api/v1/offers?count=~A&state=~A" count state))
-         (headers `(("accept" . "application/json")
-                    ("ZakupayToken" . ,token))))
-    (multiple-value-bind (body status)
-        (dex:get url :headers headers)
-      (if (= status 200)
-          (cl-json:decode-json-from-string body)
-          (error "HTTP request failed with status ~A" status)))))
+; (defun get-offers (&key (token "jcr827a555555555555555555555555nkhbjmbitl6")
+;                         (count 10)
+;                         (state "DELETED"))
+;   "Выполняет GET-запрос к /api/v1/offers и возвращает декодированный JSON."
+;   (let* ((url (format nil "https://restetris.cynteka.ru/api/v1/offers?count=~A&state=~A" count state))
+;          (headers `(("accept" . "application/json")
+;                     ("ZakupayToken" . ,token))))
+;     (multiple-value-bind (body status)
+;         (dex:get url :headers headers)
+;       (if (= status 200)
+;           (cl-json:decode-json-from-string body)
+;           (error "HTTP request failed with status ~A" status)))))
 
 
 
@@ -1752,7 +1752,7 @@
 ;; (:GLPI-BASE-URL . "https://glpi.upshepard.ru") 
 
 
-
-(let ((*print-length* nil)
-      (*print-level* nil))
-  (format t "~S~%" (hello:get-offers)))
+;(hello:load-config)
+; (let ((*print-length* nil)
+;       (*print-level* nil))
+;   (format t "~S~%" (hello:get-offers)))
