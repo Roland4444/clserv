@@ -14,7 +14,9 @@
   (:export #:start-server #:main #:plus #:test-plus  #:tests   #:test-id
   #:test-bitrix-update-json   #:test-find-uploaded-file
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
-  #:test-headers-simple   #:test-chat-html  #:send-btrx24-chat  #:get-offers     #:load-config))
+  #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
+  #:test-synteka-token   #:test-all
+  ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
 
@@ -23,7 +25,7 @@
 
 (defun test-plus ()
   (format t "Running tests for PLUS...~%")
-  (assert (= (plus 2 1) 5))
+  (assert (= (plus 2 1) 3))
   (assert (= (plus -1 1) 0))
   (assert (= (plus 0 0) 0))
   (format t "All tests passed.~%")
@@ -750,6 +752,38 @@
     (let ((id (extract-number-from-json-string json "ID")))
       (assert (= id 592))
       (format t "Test passed: extracted ~A~%" id))))
+
+(defun test-synteka-token()
+
+(let ((config-name "testconfig.lisp")(test-token "test-token-123"))
+  (with-open-file (stream config-name
+                  :direction :output
+                  :if-exists :supersede
+                  :external-format :utf-8)
+                  (format stream "((:zakupay-token . ~S))" test-token))
+  (load-config config-name)
+  (let ((token (gethash :zakupay-token *config*)))
+    (assert (equal token test-token)  nil
+    "Token mismatch: expected ~S, got ~S" test-token token))
+  (delete-file config-name)
+  (load-config)
+  (format t "Test passed!")
+  t))  
+
+
+(defun test-all()
+  (test-plus)
+  (tests)
+  (test-id)
+  (test-bitrix-update-json)
+  (test-find-uploaded-file)
+  (test-compute-deadline)
+  (testExtractToken) 
+  (test-replace-html-links)
+  (test-headers-simple)
+  (test-synteka-token)   
+)
+
 
 ;; Запуск: (test-extract-id)
 
@@ -1747,6 +1781,9 @@
 ;; sbcl --load hello.lisp      --eval '(hello:test-id)'
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-chat-html)'
+
+
+;; sbcl --load hello.lisp      --eval '(hello:test-synteka-token)'
 
 ;;      sbcl --load hello.lisp      --eval '(hello:get-offers)'
 ;; (:GLPI-BASE-URL . "https://glpi.upshepard.ru") 
