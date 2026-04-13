@@ -407,3 +407,59 @@ curl -X 'GET' \
   
 
   curl --request GET --url 'https://restetris.cynteka.ru/api/v1/offers?count=10&state=DELETED' --header "accept: application/json" --header "ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6"
+
+
+
+  curl -X 'POST' \
+  'https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true' \
+  -H 'accept: application/json' \
+  -H 'ZakupayToken: f97136657nsdjg20f650q92ieq1ueei7nnhmjku07qessa772ium' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "name": "Мурино2",
+  "project": {
+    "id": 3
+  },
+  "state": "DRAFT",
+  "finishDate": "2026-12-19",
+  "comment": "Только самые качественные материалы",
+  "sourceAccount": {
+    "id": 34
+  },
+  "consignee": {
+    "id": 2
+  },
+  "region": {
+    "id": 23
+  },
+  "isDeliveryNeed": true,
+  "deliveryAddress": "ул. Благовещенская, д. 12",
+  "responsible": {
+    "id": 45
+  },
+  "delay": 30,
+  "externalId": 132,
+  "orderItems": [
+    {
+      "goodName": "Кабель ВВГ 3x1.5",
+      "count": 1000,
+      "budgetItem": {
+        "id": 10
+      },
+      "unit": {
+        "id": 76
+      },
+      "costItem": {
+        "id": 93
+      },
+      "analogAllow": false,
+      "innerComment": "Красный",
+      "goodPosition": {
+        "externalId": "000000004100008693"
+      }
+    }
+  ],
+  "files": {
+    "id": 56
+  }
+}'

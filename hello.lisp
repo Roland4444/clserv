@@ -15,7 +15,7 @@
   #:test-bitrix-update-json   #:test-find-uploaded-file
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
-  #:test-synteka-token   #:test-all
+  #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user    
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -35,7 +35,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||       ||    ||  || \\ || ||_____  ||   ||    ||::::::::::::::::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;|||____|  ||____||  ||  \\|| ||       ||   ||____||::::::::::::::::
 
-
+;;;                    (hello:sbis-auth-and-get-user "lfomina@relits.ru" "Luda12345")
 (defparameter *acceptor* 
   (make-instance 'hunchentoot:easy-acceptor 
                  :port 11111
@@ -127,6 +127,68 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::::::::::::::::::::::::::::::::::::::::::::::::::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::::::::::::::::::::::::::::::::::::::::::::::::::
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::::::::::::::::::::::::::::::::::::::::::::::::::
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                         ::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defun sbis-auth-and-get-user (login password)
+  "Аутентификация в СБИС и получение информации о пользователе."
+  ;; 1. Аутентификация
+  (multiple-value-bind (body status headers)
+      (dex:post "https://online.sbis.ru/auth/service/"
+                :headers '(("Content-Type" . "application/json; charset=UTF-8"))
+                :content (cl-json:encode-json-to-string
+                          `((:jsonrpc . "2.0")
+                            (:method . "СБИС.Аутентифицировать")
+                            (:params (:Параметр (:Логин . ,login) (:Пароль . ,password)))
+                            (:id . 0))
+                          :escape-unicode nil))   ; ← ключевое изменение
+    (unless (= status 200)
+      (error "Ошибка аутентификации: HTTP ~A" status))
+    (let* ((json (cl-json:decode-json-from-string body))
+           (sid (cdr (assoc :result json))))
+      (unless sid
+        (error "Ошибка аутентификации: ~A" (cdr (assoc :error json))))
+      (format t "Аутентификация успешна. SID: ~A~%" sid))
+
+    ;; Извлекаем cookie из заголовка Set-Cookie
+    (let* ((set-cookie-header (cdr (assoc :set-cookie headers)))
+           (cookie (if set-cookie-header
+                       (let ((semi-pos (position #\; set-cookie-header)))
+                         (if semi-pos
+                             (subseq set-cookie-header 0 semi-pos)
+                             set-cookie-header))
+                       (error "Сервер не вернул cookie"))))
+      (format t "Получена cookie: ~A~%" cookie)
+
+      ;; 2. Запрос информации о пользователе
+      (multiple-value-bind (info-body info-status)
+          (dex:post "https://online.sbis.ru/service/?srv=1"
+                    :headers `(("Content-Type" . "application/json; charset=UTF-8")
+                               ("Cookie" . ,cookie))
+                    :content (cl-json:encode-json-to-string
+                              `((:jsonrpc . "2.0")
+                                (:method . "СБИС.ИнформацияОТекущемПользователе")
+                                (:params (:Параметр))
+                                (:id . 0))
+                              :escape-unicode nil))   ; ← и здесь тоже
+        (unless (= info-status 200)
+          (error "Ошибка запроса информации: HTTP ~A" info-status))
+        (let* ((json (cl-json:decode-json-from-string info-body))
+               (user (cdr (assoc :result json))))
+          (if user
+              (progn
+                (format t "Информация о пользователе:~%")
+                (write-line (cl-json:encode-json-to-string user :pretty t :escape-unicode nil)))
+              (error "Не удалось получить информацию: ~A"
+                     (cdr (assoc :error json)))))))))
+
+(sbis-auth-and-get-user "lfomina@relits.ru" "Luda12345")
+
+
 
 
 ;;; Работа с файлом lnk
@@ -1325,6 +1387,37 @@
           (error "HTTP request failed with status ~A" status)))))
 
 
+(defun create-order ()
+  (let* ((token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json")))
+         (payload `((name . "Тестовый заказ")
+                    (project ((id . 12)))
+                    (state . "DRAFT")
+                    (finishDate . "2026-04-10")
+                    (sourceAccount ((id . 34)))
+                    (consignee ((id . 2)))
+                    (region ((id . 23)))
+                    (responsible ((id . 45)))
+                    (delay . 30)
+                    (externalId . 1744320000)
+                    (orderItems (((goodName . "Тестовый товар")
+                                  (count . 1)
+                                  (unit ((id . 76)))
+                                  (budgetItem ((id . 10)))
+                                  (costItem ((id . 93)))
+                                  (analogAllow . :false)
+                                  (innerComment . "Тест")
+                                  (goodPosition ((externalId . "000000004100008693")))))))))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          (cl-json:decode-json-from-string body)
+          (error "HTTP request failed with status ~A" status)))))          
+
+
 ; (defun get-offers (&key (token "jcr827a555555555555555555555555nkhbjmbitl6")
 ;                         (count 10)
 ;                         (state "DELETED"))
@@ -1789,7 +1882,14 @@
 ;; (:GLPI-BASE-URL . "https://glpi.upshepard.ru") 
 
 
-;(hello:load-config)
-; (let ((*print-length* nil)
-;       (*print-level* nil))
-;   (format t "~S~%" (hello:get-offers)))
+(hello:load-config)
+(let ((*print-length* nil)
+      (*print-level* nil))
+  (format t "~S~%" (hello:get-offers)))
+
+
+
+
+;;            jcr827al4vam999918922f10rr6ovpprbk6lneornnkhbjmbitl6
+;;            f97136657nsdjg20f650q92ieq1ueei7nnhmjku07qessa772ium
+;;            4eu92qp4vquikinkjqnqc7bifivtqd23652msghr1vfhfa8bi1cl
