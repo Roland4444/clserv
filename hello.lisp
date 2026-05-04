@@ -1426,13 +1426,13 @@
                     ("ZakupayToken" . ,token)
                     ("Content-Type" . "application/json")))
          (payload (list (cons "name" "Тестовый заказ")
-                        (cons "project" (list (cons "id" 12)))
+                        (cons "project" (list (cons "id" 9)))   ;;  (cons "project" (list (cons "id" 12)))   ПРОЕКТ  :: Ответственные кто имее  право создавать заявки
                         (cons "state" "DRAFT")
                         (cons "finishDate" "2026-06-10")
                         (cons "sourceAccount" (list (cons "id" 34)))
-                        (cons "consignee" (list (cons "id" 2)))
-                        (cons "region" (list (cons "id" 23)))
-                        (cons "responsible" (list (cons "id" 353)))
+                        (cons "consignee" (list (cons "id" 4)))     ; ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СПЕЦИАЛИЗИРОВАННЫЙ ЗАСТРОЙЩИК "РЭС-ТЕТРИС" #2           Грузополучатель
+                        (cons "region" (list (cons "id" 30)))
+                        (cons "responsible" (list (cons "id" 353)))   ; исполнитель
                         (cons "delay" 30)
                         (cons "externalId" 1744320000)
                         (cons "orderItems"
