@@ -463,3 +463,16 @@ curl -X 'GET' \
     "id": 56
   }
 }'
+
+
+curl -X 'GET' \
+  'https://restetris.cynteka.ru/api/v1/refbooks/employees/3000014640' \
+  -H 'accept: application/json' \
+  -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
+
+
+
+  curl -X 'GET' \
+  'https://restetris.cynteka.ru/api/v1/refbooks/colleagues?format=xml' \
+  -H 'accept: application/json' \
+  -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
