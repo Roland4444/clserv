@@ -691,10 +691,10 @@
                     data)))
               (progn
                 (setf (hunchentoot:return-code*) 404)
-                "File not found")))
+                "File not found"))
       (error ()
         (setf (hunchentoot:return-code*) 500)
-        "Internal server error"))))
+        "Internal server error")
 
 (push (hunchentoot:create-prefix-dispatcher "/static/" 'static-handler)
       hunchentoot:*dispatch-table*)
