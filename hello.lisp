@@ -674,29 +674,13 @@
 ;                     var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
 ;                     loadGLPI(login || 'jopa');
 ;                 });
-;             });
 ;         }
-;     })();
-; </script>
-; </head>
-; <body></body>
-; </html>")))
-
-(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
-  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (chat-html debug-user))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
 
 
 
 (defun static-handler ()
   (let* ((uri (hunchentoot:request-uri*))
          (path (subseq uri 8))) 
-    (handler-case
-        (let ((full-path (make-pathname :name path :directory '(:relative "static"))))
-          (if (and (probe-file full-path)
                    (not (uiop:directory-pathname-p full-path)))
               (progn
                 (setf (hunchentoot:content-type*)
@@ -884,6 +868,9 @@
              (unless (and result
                           (equal (file-namestring result) "test.txt"))
                (error "Test 1 failed: expected test.txt, got ~S" result))
+    (handler-case
+        (let ((full-path (make-pathname :name path :directory '(:relative "static"))))
+          (if (and (probe-file full-path)
              (format t "Test 1 passed~%"))
 
            ;; Тест 2: если удалить test.txt, должен вернуть NIL
@@ -893,18 +880,27 @@
                (error "Test 2 failed: expected NIL, got ~S" result))
              (format t "Test 2 passed~%"))
 
+;     })();
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
            ;; Тест 3: если добавить ещё один файл, должен вернуть первый
            (with-open-file (f (merge-pathnames "other.png" test-dir-pathname)
                               :direction :output :if-exists :supersede)
              (write-line "fake" f))
            (let ((result (find-uploaded-file test-dir-pathname)))
              (unless (and result
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (chat-html debug-user))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                           (member (file-namestring result) '("other.png") :test #'string=))
                (error "Test 3 failed: expected other.png, got ~S" result))
              (format t "Test 3 passed~%"))
 
            (format t "All tests passed~%"))
       ;; очистка: удаляем временную директорию
+; </script>
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
       (uiop:delete-directory-tree test-dir-pathname :validate t))))
 
 ;; Запуск: (test-find-uploaded-file)
@@ -913,6 +909,9 @@
   (format t "Testing extract-number-from-json-string...~%")
   ;; Тест 1: ID без кавычек (как в ответе загрузки файла)
   (let ((json "{\"result\":{\"ID\":592,\"NAME\":\"file.txt\"}}"))
+; </head>
+; <body></body>
+; </html>")))
     (assert (= (extract-number-from-json-string json "ID") 592))
     (format t "Test 1 passed: extracted 592~%"))
   ;; Тест 2: id в кавычках (как в ответе создания задачи)
@@ -1173,6 +1172,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -1183,23 +1183,28 @@
 (defun extract-string-from-json-string (json-string key)
   "Извлекает строковое значение из JSON-строки по ключу (например, key=\"session_token\")."
   (let* ((key-str (format nil "\"~A\":" key))
+
          (start (search key-str json-string)))
     (unless start
       (error "Поле ~S не найдено в JSON" key-str))
     (let ((pos (+ start (length key-str))))
+
       (loop while (and (< pos (length json-string))
                        (member (aref json-string pos) '(#\Space #\Tab)))
             do (incf pos))
       (when (and (< pos (length json-string))
+
                  (char= (aref json-string pos) #\"))
         (incf pos))
       (let ((start-pos pos))
         (loop while (and (< pos (length json-string))
+
                          (char/= (aref json-string pos) #\"))
               do (incf pos))
         (if (= start-pos pos)
             (error "После поля ~S не найдена строка" key-str)
             (subseq json-string start-pos pos))))))
+
 
 
 
@@ -1312,6 +1317,7 @@
       ;; 5. Если есть файл — загружаем и прикрепляем
       (when file-path
         (handler-case
+
             (let ((doc-id (upload-file-to-glpi base file-path session-token app-token)))
               (attach-document-to-glpi-ticket base doc-id ticket-id session-token app-token)
               (format t "    Файл ~A прикреплён к тикету ~A~%" 
@@ -1862,6 +1868,7 @@
     (hunchentoot:start acceptor)
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
+
     (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat~%")
     acceptor))    
 
@@ -1878,6 +1885,7 @@
 (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
 (setf hunchentoot:*session-gc-frequency* 60)
   ;; Запускаем фоновый поток для обработки заявок
+
 (bt:make-thread
   (lambda ()
     (loop
@@ -1887,6 +1895,7 @@
             (scan-requests))
         (error (e)
           (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
+
           (log-error-to-file e)
           (finish-output nil)))))
   :name "request-processor")
@@ -1895,6 +1904,7 @@
   ;     (loop
   ;       (sleep 10)   ; интервал сканирования
   ;       (when (gethash :processing-enabled *config*)
+
   ;         (scan-requests))))
   ;   :name "request-processor")
   
@@ -1913,6 +1923,7 @@
 
 
 ;; sbcl --load hello.lisp      --eval '(hello:tests)'
+
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-id)'
 
