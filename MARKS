@@ -476,3 +476,39 @@ curl -X 'GET' \
   'https://restetris.cynteka.ru/api/v1/refbooks/colleagues?format=xml' \
   -H 'accept: application/json' \
   -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
+
+
+  curl -X POST "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true" \
+  -H "accept: application/json" \
+  -H "ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Тестовый заказ",
+    "project": {"id": 6},
+    "state": "DRAFT",
+    "finishDate": "2026-06-10",
+    "sourceAccount": {"id": 34},
+    "consignee": {"id": 2},
+    "region": {"id": 30},
+    "responsible": {"id": 222},
+    "delay": 35,
+    "externalId": 1744320000,
+    "orderItems": [
+      {
+        "goodName": "Тестовый товар",
+        "count": 1,
+        "unit": {"id": 6},
+        "analogAllow": false,
+        "innerComment": "Тест",
+        "goodPosition": {"externalId": "000000004100008693"}
+      },
+      {
+        "goodName": "Crude Oil",
+        "count": 1,
+        "unit": {"id": 1},
+        "analogAllow": false,
+        "innerComment": "",
+        "goodPosition": {"externalId": "000000004100008693"}
+      }
+    ]
+  }'
