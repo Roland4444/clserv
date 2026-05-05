@@ -1426,7 +1426,7 @@
                     ("ZakupayToken" . ,token)
                     ("Content-Type" . "application/json")))
          (payload (list (cons "name" "Тестовый заказ")
-                        (cons "project" (list (cons "id" 9)))   ;;  (cons "project" (list (cons "id" 12)))   ПРОЕКТ  :: Ответственные кто имее  право создавать заявки
+                        (cons "project" (list (cons "id" 12)))   ;;  (cons "project" (list (cons "id" 12)))   ПРОЕКТ  :: Ответственные кто имее  право создавать заявки
                         (cons "state" "DRAFT")
                         (cons "finishDate" "2026-06-10")
                         (cons "sourceAccount" (list (cons "id" 34)))
@@ -1438,11 +1438,17 @@
                         (cons "orderItems"
                               (list (list (cons "goodName" "Тестовый товар")
                                           (cons "count" 1)
-                                          (cons "unit" (list (cons "id" 1)))
+                                          (cons "unit" (list (cons "id" 9)))   ;; 1 - шт, 2 - м,  3 - м .п. 4 - литр, 5 =- кг, 6 квадратный метр,  7 - кубический метр, 
                                           ; (cons "budgetItem" (list (cons "id" 10)))
                                           ; (cons "costItem" (list (cons "id" 93)))
                                           (cons "analogAllow" nil)
                                           (cons "innerComment" "Тест")
+                                          (cons "goodPosition" (list (cons "externalId" "000000004100008693"))))
+                                    (list (cons "goodName" "Crude Oil")
+                                          (cons "count" 1)
+                                          (cons "unit" (list (cons "id" 1)))
+                                          (cons "analogAllow" nil)
+                                          (cons "innerComment" "")
                                           (cons "goodPosition" (list (cons "externalId" "000000004100008693")))))))))
     (multiple-value-bind (body status)
         (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
