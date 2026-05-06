@@ -476,3 +476,21 @@ curl -X 'GET' \
   'https://restetris.cynteka.ru/api/v1/refbooks/colleagues?format=xml' \
   -H 'accept: application/json' \
   -H 'ZakupayToken: jcr827al4vam6ddd18922f10rr6ovpprbk6lneornnkhbjmbitl6'
+
+
+
+
+  Поле "goodPosition": {"externalId": "000000004100008693"} отображает внешний id позиции из товарной базы. Внешний id - это уникальный id позиции Товарной базы в нашей системе, но видим, что товарная база в вашей Синтеке не заполнена, поэтому это поле может не указываться.
+
+Прикладываю статью из Базы знаний по Товарной базе: https://wiki.cynteka.ru/docs/refbooks/tovarnaya-baza#product-base.
+Плательщиком для заявки установилась компания id 30, так как в поле "sourceAccount" был указана id банковского счета этой компании - id 34. Подскажите, пожалуйста, какую компанию плательщика вам необходимо выбрать?
+Для указания адреса есть блок в запросе, например:
+
+"isDeliveryNeed": true,
+"deliveryAddress": "ул. Благовещенская, д. 12",
+"interAllowStatus": "PRIVATE",
+"responsible": {
+"id": 45,
+"lastName": "Иванов",
+"firstName": "Иван",
+"middleName": "Иванович"

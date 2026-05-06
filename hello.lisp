@@ -1195,6 +1195,14 @@
 ;; Убедитесь, что yason загружен
 ;; (ql:quickload :yason)
 
+
+
+
+
+
+
+
+
 (defun create-order-from-list (items-list
                                &key (name "Заказ через API")
                                     (project-id 6)
