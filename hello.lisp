@@ -24,7 +24,7 @@
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
-(load "synteka.lisp")
+;;(load "synteka.lisp")
 
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -1136,6 +1136,49 @@
 ;       (if (= status 200)
 ;           (cl-json:decode-json-from-string body)
 ;           (error "HTTP request failed with status ~A" status)))))
+
+
+
+(defun create-order ()
+  (let* ((token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json")))
+         (payload (list (cons "name" "Тестовый заказ CL")
+                        (cons "project" (list (cons "id" 6)))   ;;  (cons "project" (list (cons "id" 12)))   ПРОЕКТ  :: Ответственные кто имее  право создавать заявки
+                        (cons "state" "DRAFT")
+                        (cons "finishDate" "2026-06-10")
+             
+                        (cons "sourceAccount" (list (cons "id" 34)))
+                        (cons "consignee" (list (cons "id" 2)))     ; ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СПЕЦИАЛИЗИРОВАННЫЙ ЗАСТРОЙЩИК "РЭС-ТЕТРИС" #2           Грузополучатель
+                        (cons "region" (list (cons "id" 30)))
+                        (cons "responsible" (list (cons "id" 222)))   ; исполнитель
+                        (cons "delay" 35)   ;; ООО "ЮЖНЫЙ КАБЕЛЬНЫЙ ЦЕНТР"   - 30;   
+                        (cons "externalId" 1744320000)
+                        (cons "orderItems"
+                              (list (list (cons "goodName" "Тестовый товар")
+                                          (cons "count" 1)
+                                          (cons "unit" (list (cons "id" 6)))   ;; 1 - шт, 2 - м,  3 - м .п. 4 - литр, 5 =- кг, 6 квадратный метр,  7 - кубический метр, 
+                                          ; (cons "budgetItem" (list (cons "id" 10)))
+                                          ; (cons "costItem" (list (cons "id" 93)))
+                                          (cons "analogAllow" nil)
+                                          (cons "innerComment" "Тест")
+                                          (cons "goodPosition" (list (cons "externalId" "000000004100008693"))))
+                                    (list (cons "goodName" "Crude Oil Cad")
+                                          (cons "count" 1)
+                                          (cons "unit" (list (cons "id" 1)))
+                                          (cons "analogAllow" nil)
+                                          (cons "innerComment" "")
+                                          (cons "goodPosition" (list (cons "externalId" "000000004100008693")))))))))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          (cl-json:decode-json-from-string body)
+          (error "HTTP request failed with status ~A, body: ~A" status body)))))
+
+
+
 
 (defun replace-all (part replacement string)
   (with-output-to-string (out)
