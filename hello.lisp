@@ -21,7 +21,7 @@
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
-  #:create-order-from-list
+  #:create-order-from-list   #:test-parse-items-block4
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1333,6 +1333,10 @@
               (list name quantity code))))))))
 
 
+
+
+
+
 (defun test-parse-items-block ()
   (let* ((text (format nil "1) Доска 25х100 - 20 шт.~%2) Саморезы 3,5x51 - 1000 шт.~%3) Гвозди 100 мм. - 10 кг."))
          (expected '(("Доска 25х100" 20 1)
@@ -1361,10 +1365,26 @@
     (format t "Тест parse-items-block пройден!~%")
     result))
 
+(defun test-parse-items-block4 ()  ;;;;    sbcl --load hello.lisp --eval '(hello:test-parse-items-block4)'
+  (let* ((text (format nil "Заявка Шагов~%Труюа ppr ду50мм апельсинка -400метров~%Тройник ppr 50×25×50- 135шт~%Заглушка ppr ду25мм- 135шт~%Хомут металлический в сборе на ду50мм - 405шт~%Изоляция энергофоекс на ду50мм- 400метров"))
+
+         (expected '(("Труюа ppr ду50мм апельсинка" 400 3)
+                     ("Тройник ppr 50×25×50" 135 1)
+                     ("Заглушка ppr ду25мм" 135 1)
+                     ("Хомут металлический в сборе на ду50мм"  405 1)
+                     ("Изоляция энергофоекс на ду50мм" 400 3)))
+                    
+         (result (parse-items-block text)))
+    (assert (equal result expected))
+    (format t "Тест parse-items-block4 пройден!~%")
+    result))
+
+
 (defun test-parse-strings()
     (test-parse-items-block )
     (test-parse-items-block__)
     (test-parse-items-block2 )
+    (test-parse-items-block4 )
 )
 
 
