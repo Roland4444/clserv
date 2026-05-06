@@ -7,6 +7,7 @@
 (asdf:load-system :dexador)
 (asdf:load-system :cl-base64)
 (asdf:load-system :cl-ppcre)
+(asdf:load-system :yason)
 
 
 ;; Настройки Hunchentoot для поддержки больших файлов
@@ -19,7 +20,7 @@
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
-  #:test-parse-items-block__  #:test-parse-strings
+  #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -313,8 +314,39 @@
       (progn (write-links content) "Link updated successfully.")
       (progn (setf (hunchentoot:return-code*) 400) "Missing content parameter")))
 
+
+(defun format-parse-result (text)
+  (let ((items (parse-items-block text)))
+    (with-output-to-string (stream)
+      (yason:encode items stream))))
+
+(hunchentoot:define-easy-handler (decode :uri "/decode") (input)
+  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+  (let ((input-value (or input (hunchentoot:post-parameter "input"))))
+    (if (and input-value (string/= input-value ""))
+        (format-parse-result input-value)
+        (progn
+          (setf (hunchentoot:return-code*) 400)
+          "{\"error\": \"Missing input parameter\"}"))))
+
 (hunchentoot:define-easy-handler (google-redirect :uri "/google") ()
   (hunchentoot:redirect "https://romach.space/chat"))
+
+(defun send-to-decodezz (text)
+  "Отправляет TEXT в /decode через GET-запрос и выводит ответ сервера."
+  (multiple-value-bind (body status)
+      (dex:get "http://localhost:11111/decode"
+               :query `(("input" . ,text))
+               :want-string t)
+    (format t "~%Статус: ~A~%" status)
+    (format t "Ответ сервера:~%~A~%" body)
+    (force-output)
+    (values body status)))
+
+;;;       (send-to-decodezz (format nil "1) Доска 25х100 - 20 шт.~%2) Саморезы 3,5x51 - 1000 шт.~%3) Гвозди 100 мм. - 10 кг."))
+
+
+
 
 
 ;; ios button only
@@ -579,10 +611,6 @@
                       :headers '(("secretuser" . "my-secret-value")
                                  ("X-Forwarded-User" . "super")
                       ))))
-
-
-
-
 
 
 (defun test-find-uploaded-file ()
@@ -1632,18 +1660,18 @@
 (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
 (setf hunchentoot:*session-gc-frequency* 60)
   ;; Запускаем фоновый поток для обработки заявок
-(bt:make-thread
-  (lambda ()
-    (loop
-      (sleep 10)
-      (handler-case
-          (when (gethash :processing-enabled *config*)
-            (scan-requests))
-        (error (e)
-          (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
-          (log-error-to-file e)
-          (finish-output nil)))))
-  :name "request-processor")
+; (bt:make-thread
+;   (lambda ()
+;     (loop
+;       (sleep 10)
+;       (handler-case
+;           (when (gethash :processing-enabled *config*)
+;             (scan-requests))
+;         (error (e)
+;           (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
+;           (log-error-to-file e)
+;           (finish-output nil)))))
+;   :name "request-processor")
   ; (bt:make-thread
   ;   (lambda ()
   ;     (loop
