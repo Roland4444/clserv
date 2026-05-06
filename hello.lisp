@@ -6,6 +6,8 @@
 (asdf:load-system :bordeaux-threads)
 (asdf:load-system :dexador)
 (asdf:load-system :cl-base64)
+(asdf:load-system :cl-ppcre)
+
 
 ;; Настройки Hunchentoot для поддержки больших файлов
 
@@ -16,10 +18,11 @@
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
-  #:cr-order  
+  #:cr-order  #:test-extract-items 
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
+(load "synteka.lisp")
 
 ;;; Функция суммирования
 (defun plus (a b) (+ a b))
@@ -674,13 +677,29 @@
 ;                     var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
 ;                     loadGLPI(login || 'jopa');
 ;                 });
+;             });
 ;         }
+;     })();
+; </script>
+; </head>
+; <body></body>
+; </html>")))
+
+(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
+  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+  (chat-html debug-user))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
 
 
 
 (defun static-handler ()
   (let* ((uri (hunchentoot:request-uri*))
          (path (subseq uri 8))) 
+    (handler-case
+        (let ((full-path (make-pathname :name path :directory '(:relative "static"))))
+          (if (and (probe-file full-path)
                    (not (uiop:directory-pathname-p full-path)))
               (progn
                 (setf (hunchentoot:content-type*)
@@ -691,10 +710,10 @@
                     data)))
               (progn
                 (setf (hunchentoot:return-code*) 404)
-                "File not found"))
+                "File not found")))
       (error ()
         (setf (hunchentoot:return-code*) 500)
-        "Internal server error")
+        "Internal server error"))))
 
 (push (hunchentoot:create-prefix-dispatcher "/static/" 'static-handler)
       hunchentoot:*dispatch-table*)
@@ -801,7 +820,6 @@
       (format t "Test passed: extracted ~A~%" id))))
 
 (defun test-synteka-token()
-
 (let ((config-name "testconfig.lisp")(test-token "test-token-123"))
   (with-open-file (stream config-name
                   :direction :output
@@ -818,6 +836,8 @@
   t))  
 
 
+
+
 (defun test-all()
   (test-plus)
   (tests)
@@ -827,9 +847,17 @@
   (test-compute-deadline)
   (testExtractToken) 
   (test-replace-html-links)
-  (test-headers-simple)
+ ;(test-headers-simple)
   (test-synteka-token)   
 )
+
+
+(defun test-headers-simple()
+(format t "~A~%"  (dex:get "https://romach.space/test"
+                      :headers '(("secretuser" . "my-secret-value")
+                                 ("X-Forwarded-User" . "super")
+                      ))))
+
 
 
 ;; Запуск: (test-extract-id)
@@ -868,9 +896,6 @@
              (unless (and result
                           (equal (file-namestring result) "test.txt"))
                (error "Test 1 failed: expected test.txt, got ~S" result))
-    (handler-case
-        (let ((full-path (make-pathname :name path :directory '(:relative "static"))))
-          (if (and (probe-file full-path)
              (format t "Test 1 passed~%"))
 
            ;; Тест 2: если удалить test.txt, должен вернуть NIL
@@ -880,27 +905,18 @@
                (error "Test 2 failed: expected NIL, got ~S" result))
              (format t "Test 2 passed~%"))
 
-;     })();
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  
            ;; Тест 3: если добавить ещё один файл, должен вернуть первый
            (with-open-file (f (merge-pathnames "other.png" test-dir-pathname)
                               :direction :output :if-exists :supersede)
              (write-line "fake" f))
            (let ((result (find-uploaded-file test-dir-pathname)))
              (unless (and result
-  (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-  (chat-html debug-user))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                           (member (file-namestring result) '("other.png") :test #'string=))
                (error "Test 3 failed: expected other.png, got ~S" result))
              (format t "Test 3 passed~%"))
 
            (format t "All tests passed~%"))
       ;; очистка: удаляем временную директорию
-; </script>
-
-(hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
       (uiop:delete-directory-tree test-dir-pathname :validate t))))
 
 ;; Запуск: (test-find-uploaded-file)
@@ -909,9 +925,6 @@
   (format t "Testing extract-number-from-json-string...~%")
   ;; Тест 1: ID без кавычек (как в ответе загрузки файла)
   (let ((json "{\"result\":{\"ID\":592,\"NAME\":\"file.txt\"}}"))
-; </head>
-; <body></body>
-; </html>")))
     (assert (= (extract-number-from-json-string json "ID") 592))
     (format t "Test 1 passed: extracted 592~%"))
   ;; Тест 2: id в кавычках (как в ответе создания задачи)
@@ -1172,7 +1185,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -1183,28 +1195,23 @@
 (defun extract-string-from-json-string (json-string key)
   "Извлекает строковое значение из JSON-строки по ключу (например, key=\"session_token\")."
   (let* ((key-str (format nil "\"~A\":" key))
-
          (start (search key-str json-string)))
     (unless start
       (error "Поле ~S не найдено в JSON" key-str))
     (let ((pos (+ start (length key-str))))
-
       (loop while (and (< pos (length json-string))
                        (member (aref json-string pos) '(#\Space #\Tab)))
             do (incf pos))
       (when (and (< pos (length json-string))
-
                  (char= (aref json-string pos) #\"))
         (incf pos))
       (let ((start-pos pos))
         (loop while (and (< pos (length json-string))
-
                          (char/= (aref json-string pos) #\"))
               do (incf pos))
         (if (= start-pos pos)
             (error "После поля ~S не найдена строка" key-str)
             (subseq json-string start-pos pos))))))
-
 
 
 
@@ -1317,7 +1324,6 @@
       ;; 5. Если есть файл — загружаем и прикрепляем
       (when file-path
         (handler-case
-
             (let ((doc-id (upload-file-to-glpi base file-path session-token app-token)))
               (attach-document-to-glpi-ticket base doc-id ticket-id session-token app-token)
               (format t "    Файл ~A прикреплён к тикету ~A~%" 
@@ -1379,88 +1385,6 @@
 
 
 
-(defun get-offers (&key (count 10) (state "DELETED"))
-  "Выполняет GET-запрос к /api/v1/offers, читает токен из *config*."
-  (let* ((token (gethash :zakupay-token *config*))
-         (url (format nil "https://restetris.cynteka.ru/api/v1/offers?count=~A&state=~A" count state))
-         (headers `(("accept" . "application/json")
-                    ("ZakupayToken" . ,token))))
-    (unless token
-      (error "Token :zakupay-token not found in config"))
-    (multiple-value-bind (body status)
-        (dex:get url :headers headers)
-      (if (= status 200)
-          (cl-json:decode-json-from-string body)
-          (error "HTTP request failed with status ~A" status)))))
-
-
-(defun create-order2 ()
-  (let* ((token (gethash :zakupay-token *config*))
-         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
-         (headers `(("accept" . "application/json")
-                    ("ZakupayToken" . ,token)
-                    ("Content-Type" . "application/json")))
-         (payload `((name . "Тестовый заказ")
-                    (project ((id . 12)))
-                    (state . "DRAFT")
-                    (finishDate . "2026-06-10")
-                    (sourceAccount ((id . 34)))
-                    (consignee ((id . 2)))
-                    (region ((id . 23)))
-                    (responsible ((id . 45)))
-                    (delay . 30)
-                    (externalId . 1744320000)
-                    (orderItems (((goodName . "Тестовый товар")
-                                  (count . 1)
-                                  (unit ((id . 76)))
-                                  (budgetItem ((id . 10)))
-                                  (costItem ((id . 93)))
-                                  (analogAllow . :false)
-                                  (innerComment . "Тест")
-                                  (goodPosition ((externalId . "000000004100008693")))))))))
-    (multiple-value-bind (body status)
-        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
-      (if (= status 200)
-          (cl-json:decode-json-from-string body)
-          (error "HTTP request failed with status ~A" status)))))   
-
-
-(defun create-order ()
-  (let* ((token (gethash :zakupay-token *config*))
-         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
-         (headers `(("accept" . "application/json")
-                    ("ZakupayToken" . ,token)
-                    ("Content-Type" . "application/json")))
-         (payload (list (cons "name" "Тестовый заказ")
-                        (cons "project" (list (cons "id" 12)))   ;;  (cons "project" (list (cons "id" 12)))   ПРОЕКТ  :: Ответственные кто имее  право создавать заявки
-                        (cons "state" "DRAFT")
-                        (cons "finishDate" "2026-06-10")
-                        (cons "sourceAccount" (list (cons "id" 34)))
-                        (cons "consignee" (list (cons "id" 4)))     ; ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СПЕЦИАЛИЗИРОВАННЫЙ ЗАСТРОЙЩИК "РЭС-ТЕТРИС" #2           Грузополучатель
-                        (cons "region" (list (cons "id" 30)))
-                        (cons "responsible" (list (cons "id" 353)))   ; исполнитель
-                        (cons "delay" 30)
-                        (cons "externalId" 1744320000)
-                        (cons "orderItems"
-                              (list (list (cons "goodName" "Тестовый товар")
-                                          (cons "count" 1)
-                                          (cons "unit" (list (cons "id" 9)))   ;; 1 - шт, 2 - м,  3 - м .п. 4 - литр, 5 =- кг, 6 квадратный метр,  7 - кубический метр, 
-                                          ; (cons "budgetItem" (list (cons "id" 10)))
-                                          ; (cons "costItem" (list (cons "id" 93)))
-                                          (cons "analogAllow" nil)
-                                          (cons "innerComment" "Тест")
-                                          (cons "goodPosition" (list (cons "externalId" "000000004100008693"))))
-                                    (list (cons "goodName" "Crude Oil")
-                                          (cons "count" 1)
-                                          (cons "unit" (list (cons "id" 1)))
-                                          (cons "analogAllow" nil)
-                                          (cons "innerComment" "")
-                                          (cons "goodPosition" (list (cons "externalId" "000000004100008693")))))))))
-    (multiple-value-bind (body status)
-        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
-      (if (= status 200)
-          (cl-json:decode-json-from-string body)
-          (error "HTTP request failed with status ~A, body: ~A" status body)))))
 
 ; (defun get-offers (&key (token "jcr827a555555555555555555555555nkhbjmbitl6")
 ;                         (count 10)
@@ -1690,12 +1614,6 @@
       t)))        
 
 
-(defun test-headers-simple()
-(format t "~A~%"  (dex:get "https://romach.space/test"
-                      :headers '(("secretuser" . "my-secret-value")
-                                 ("X-Forwarded-User" . "super")
-                      ))))
-
 
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
@@ -1868,7 +1786,6 @@
     (hunchentoot:start acceptor)
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
-
     (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat~%")
     acceptor))    
 
@@ -1885,7 +1802,6 @@
 (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
 (setf hunchentoot:*session-gc-frequency* 60)
   ;; Запускаем фоновый поток для обработки заявок
-
 (bt:make-thread
   (lambda ()
     (loop
@@ -1895,7 +1811,6 @@
             (scan-requests))
         (error (e)
           (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
-
           (log-error-to-file e)
           (finish-output nil)))))
   :name "request-processor")
@@ -1904,7 +1819,6 @@
   ;     (loop
   ;       (sleep 10)   ; интервал сканирования
   ;       (when (gethash :processing-enabled *config*)
-
   ;         (scan-requests))))
   ;   :name "request-processor")
   
@@ -1923,7 +1837,6 @@
 
 
 ;; sbcl --load hello.lisp      --eval '(hello:tests)'
-
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-id)'
 
