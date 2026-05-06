@@ -18,7 +18,7 @@
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
-  #:cr-order  #:test-extract-items 
+  #:cr-order  #:test-extract-items #:test-unit-to-code
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -447,243 +447,6 @@
 </html>"
                 glpi-base-url glpi-suffix))))
 
-; (defun chat-html (&optional debug-user)
-;   (let ((glpi-base-url (gethash :glpi-base-url *config* "https://glpi.upshepard.ru"))
-;         (glpi-suffix (gethash :glpi-suffix *config* "")))
-
-;         (format t "~%debug-user = ~S~%" debug-user)
-
-;     (format nil
-;             "<!DOCTYPE html>
-; <html>
-; <head><meta charset=\"UTF-8\"><title>GLPI</title>
-; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-; <style>body,html{margin:0;padding:0;height:100%}</style>
-; ~:[<script src=\"//api.bitrix24.com/api/v1/\"></script>~;~]
-; </head>
-; <body>
-;     <script>
-;         var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-;         var baseUrl = \"~a\";
-;         var suffix = \"~a\";
-
-;         function redirectToGLPI(login) {
-;             var url = baseUrl + suffix + '?user=' + encodeURIComponent(login);
-;             if (isIOS) {
-;                 document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-;             } else {
-;                 document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-;             }
-;         }
-
-;         ~:[
-;             var debugUser = \"~a\";
-;             redirectToGLPI(debugUser);
-;         ~;
-;             (function() {
-;                 if (window.self === window.top) {
-;                     redirectToGLPI('jopa');
-;                 } else if (typeof BX24 === 'undefined') {
-;                     redirectToGLPI('jopa');
-;                 } else {
-;                     var timeout = setTimeout(function() { redirectToGLPI('jopa'); }, 3000);
-;                     BX24.init(function() {
-;                         clearTimeout(timeout);
-;                         BX24.installFinish();
-;                         BX24.callMethod('user.current', {}, function(result) {
-;                             if (result.error()) {
-;                                 redirectToGLPI('jopa');
-;                                 return;
-;                             }
-;                             var user = result.data();
-;                             var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
-;                             redirectToGLPI(login || 'jopa');
-;                         });
-;                     });
-;                 }
-;             })();
-;         ~]
-;     </script>
-; </body>
-; </html>"
-;             (null debug-user)   ; если debug-user есть, не загружаем BX24
-;             glpi-base-url
-;             glpi-suffix
-;             (not (null debug-user)) ; флаг для выбора блока
-;             (if debug-user debug-user "")))) ; значение debug-user
-
-
-
-
-
-
-; (defun chat-html (&optional debug-user)
-;   (let ((glpi-base-url (gethash :glpi-base-url *config* "https://glpi.upshepard.ru")))
-;     (if debug-user
-;         ;; Режим отладки
-;         (format nil
-;                 "<!DOCTYPE html>
-; <html>
-; <head><meta charset=\"UTF-8\"><title>GLPI</title>
-; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-; <style>body,html{margin:0;padding:0;height:100%}</style>
-; <script>
-;     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-;     var user = \"~a\";
-;     var url = '~a/?user=' + encodeURIComponent(user);
-;     if (isIOS) {
-;         document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-;     } else {
-;         document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-;     }
-; </script>
-; </head>
-; <body></body>
-; </html>"
-;                 debug-user glpi-base-url)
-;         ;; Обычный режим
-;         (format nil
-;                 "<!DOCTYPE html>
-; <html>
-; <head><meta charset=\"UTF-8\"><title>GLPI</title>
-; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-; <style>body,html{margin:0;padding:0;height:100%}</style>
-; <script src=\"//api.bitrix24.com/api/v1/\"></script>
-; <script>
-;     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-;     var baseUrl = \"~a\";
-
-;     function showButton(login) {
-;         var url = baseUrl + '/?user=' + encodeURIComponent(login);
-;         document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-;     }
-
-;     function showIframe(login) {
-;         var url = baseUrl + '/?user=' + encodeURIComponent(login);
-;         document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-;     }
-
-;     function loadGLPI(login) {
-;         if (!login) login = 'jopa';
-;         if (isIOS) {
-;             showButton(login);
-;         } else {
-;             showIframe(login);
-;         }
-;     }
-
-;     (function() {
-;         if (window.self === window.top) {
-;             loadGLPI('jopa');
-;         } else if (typeof BX24 === 'undefined') {
-;             loadGLPI('jopa');
-;         } else {
-;             var timeout = setTimeout(function() {
-;                 loadGLPI('jopa');
-;             }, 3000);
-;             BX24.init(function() {
-;                 clearTimeout(timeout);
-;                 BX24.installFinish();
-;                 BX24.callMethod('user.current', {}, function(result) {
-;                     if (result.error()) {
-;                         loadGLPI('jopa');
-;                         return;
-;                     }
-;                     var user = result.data();
-;                     var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
-;                     loadGLPI(login || 'jopa');
-;                 });
-;             });
-;         }
-;     })();
-; </script>
-; </head>
-; <body></body>
-; </html>"
-;                 glpi-base-url))))
-
-
-; (defun chat-html (&optional debug-user)
-;   (if debug-user
-;       ;; Режим отладки: сразу кнопка для iOS, iframe для остальных
-;       (format nil
-;               "<!DOCTYPE html>
-; <html>
-; <head><meta charset=\"UTF-8\"><title>GLPI</title>
-; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-; <style>body,html{margin:0;padding:0;height:100%}</style>
-; <script>
-;     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-;     var user = \"~a\";
-;     var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(user);
-;     if (isIOS) {
-;         document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-;     } else {
-;         document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-;     }
-; </script>
-; </head>
-; <body></body>
-; </html>"
-;               debug-user)
-;       ;; Обычный режим: получаем пользователя из Битрикс24
-;       (format nil
-;               "<!DOCTYPE html>
-; <html>
-; <head><meta charset=\"UTF-8\"><title>GLPI</title>
-; <link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css\" rel=\"stylesheet\">
-; <style>body,html{margin:0;padding:0;height:100%}</style>
-; <script src=\"//api.bitrix24.com/api/v1/\"></script>
-; <script>
-;     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-;     function showButton(login) {
-;         var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-;         document.write('<div style=\"display: flex; justify-content: center; align-items: center; height: 100vh;\"><a href=\"' + url + '\" class=\"btn btn-danger btn-lg\" target=\"_blank\">Войти</a></div>');
-;     }
-
-;     function showIframe(login) {
-;         var url = 'https://glpi.romach.space/?user=' + encodeURIComponent(login);
-;         document.write('<iframe src=\"' + url + '\" style=\"width:100%; height:100%; border:0;\"></iframe>');
-;     }
-
-;     function loadGLPI(login) {
-;         if (!login) login = 'jopa';
-;         if (isIOS) {
-;             showButton(login);
-;         } else {
-;             showIframe(login);
-;         }
-;     }
-
-;     (function() {
-;         if (window.self === window.top) {
-;             loadGLPI('jopa');
-;         } else if (typeof BX24 === 'undefined') {
-;             loadGLPI('jopa');
-;         } else {
-;             var timeout = setTimeout(function() {
-;                 loadGLPI('jopa');
-;             }, 3000);
-;             BX24.init(function() {
-;                 clearTimeout(timeout);
-;                 BX24.installFinish();
-;                 BX24.callMethod('user.current', {}, function(result) {
-;                     if (result.error()) {
-;                         loadGLPI('jopa');
-;                         return;
-;                     }
-;                     var user = result.data();
-;                     var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
-;                     loadGLPI(login || 'jopa');
-;                 });
-;             });
-;         }
-;     })();
-; </script>
-; </head>
-; <body></body>
-; </html>")))
 
 (hunchentoot:define-easy-handler (chat :uri "/chat") (debug-user)
   (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
@@ -718,48 +481,6 @@
 (push (hunchentoot:create-prefix-dispatcher "/static/" 'static-handler)
       hunchentoot:*dispatch-table*)
 
-
-
-; (hunchentoot:define-easy-handler (edit-handler :uri "/edit") (content)
-;   (case (hunchentoot:request-method*)
-;     ;; GET: показать форму с текущим содержимым
-;     (:get
-;      (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-;      (let ((file-content
-;              (with-open-file (f "hello.lisp" :direction :input)
-;                (let ((str (make-string (file-length f))))
-;                  (read-sequence str f)
-;                  str))))
-;        (format nil "
-; <html>
-; <head><title>Edit hello.lisp</title>
-; <style>
-; body { font-family: sans-serif; margin: 20px; }
-; textarea { width: 100%; font-family: monospace; }
-; </style>
-; </head>
-; <body>
-;   <h1>Редактирование hello.lisp</h1>
-;   <form method='post' action='/edit'>
-;     <textarea name='content' rows='30'>~A</textarea><br>
-;     <input type='submit' value='Сохранить и перезагрузить'>
-;   </form>
-;   <p><a href='/r'>Перезагрузить без сохранения</a></p>
-; </body>
-; </html>"
-;                (hunchentoot:escape-for-html file-content))))
-;     ;; POST: сохранить и перезагрузить
-;     (:post
-;      (if content
-;          (progn
-;            (with-open-file (f "hello.lisp" :direction :output :if-exists :supersede)
-;              (write-string content f))
-;            (load "hello.lisp")
-;            (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
-;            "Сохранено и перезагружено. <a href='/edit'>Вернуться</a>")
-;          (progn
-;            (setf (hunchentoot:return-code*) 400)
-;            "Ошибка: нет данных")))))
 
 
 
@@ -860,19 +581,7 @@
 
 
 
-;; Запуск: (test-extract-id)
 
-;; Запуск теста
-;; (test-extract-id)
-
-
-
-
-;;; Тесты для extract-id-from-bitrix-response
-;; Тест для extract-number-from-json-string на реальном JSON из лога
-
-
-;; Запуск: (test-extract-id)
 
 
 (defun test-find-uploaded-file ()
@@ -1401,12 +1110,43 @@
 
 
 
+(defun unit-to-code (unit)
+  "Возвращает числовой код единицы измерения (1–7) или NIL, если единица не распознана."
+  (let ((normalized (string-trim "." unit)))  ; удаляем точки по краям
+    (cond
+      ((member normalized '("шт" "штук" "штуки") :test #'string-equal) 1)
+      ((member normalized '("м" "метр" "метра") :test #'string-equal) 2)
+      ((member normalized '("м.п" "п.м" "пог.м" "мп") :test #'string-equal) 3)
+      ((member normalized '("л" "литр" "литра") :test #'string-equal) 4)
+      ((member normalized '("кг" "килограмм" "килограмма") :test #'string-equal) 5)
+      ((member normalized '("м2" "кв.м" "квадратный метр") :test #'string-equal) 6)
+      ((member normalized '("м3" "куб.м" "кубический метр") :test #'string-equal) 7)
+      (t nil))))                  ; аналог None в Rust
 
+(unit-to-code "шт.")   ; => 1
+(unit-to-code "кг")    ; => 5               ;; 1 - шт, 2 - м,  3 - м .п. 4 - литр, 5 =- кг, 6 квадратный метр,  7 - кубический метр, 
+(unit-to-code "м.п")   ; => 3
+(unit-to-code "неизвестно") ; => NIL
 
-
-
-
-
+(defun test-unit-to-code()
+(let* ((res1 (unit-to-code   "шт."))
+       (res2(unit-to-code "м"))  
+       (res3(unit-to-code "м.п."))  
+       (res4(unit-to-code "л")) 
+       (res5(unit-to-code "кг")))  
+       (assert (= res1 1) nil
+              "________________Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" 1 res1)
+       (assert (= res2 2) nil
+              "________________Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" 2 res2)
+       (assert (= res3 3) nil
+              "________________Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" 3 res3)
+       (assert (= res4 4) nil
+              "________________Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" 4 res4)
+       (assert (= res5 5) nil
+              "________________Тест не пройден!~%Ожидалось:~%~A~%Получено:~%~A" 5 res5)     
+       
+       (format t "_________Тест пройден.~%")
+))
 
 
 
