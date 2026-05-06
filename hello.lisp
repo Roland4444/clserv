@@ -21,6 +21,7 @@
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
+  #:create-order-from-list
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1138,6 +1139,114 @@
 ;           (error "HTTP request failed with status ~A" status)))))
 
 
+;;   sbcl --load hello.lisp --eval  'hello:create-order-from-list((("Доска 25х100" 20 1) ("Саморезы 3,5x51" 1000 1)("Гвозди 100 мм." 10 5)))'
+
+(defun create-order-from-list-bak (items-list
+                               &key (name "Заказ через API")
+                                    (project-id 6)
+                                    (finish-date "2026-06-10")
+                                    (source-account-id 34)
+                                    (consignee-id 2)
+                                    (region-id 30)
+                                    (responsible-id 222)
+                                    (delay 35)
+                                    (external-id 1744320000)
+                                    (good-position-external-id "000000004100008693"))
+
+  (load-config)                                 
+  (unless items-list
+    (error "Список позиций не может быть пустым"))
+  (let* ((order-items
+           (loop for (name quantity code) in items-list
+                 collect `((goodName . ,name)
+                           (count . ,quantity)
+                           (unit . ((id . ,code)))
+                           (analogAllow . nil)
+                           (innerComment . "")
+                           (goodPosition . ((externalId . ,good-position-external-id))))))
+         (payload `((name . ,name)
+                    (project . ((id . ,project-id)))
+                    (state . "DRAFT")
+                    (finishDate . ,finish-date)
+                    (sourceAccount . ((id . ,source-account-id)))
+                    (consignee . ((id . ,consignee-id)))
+                    (region . ((id . ,region-id)))
+                    (responsible . ((id . ,responsible-id)))
+                    (delay . ,delay)
+                    (externalId . ,external-id)
+                    (orderItems . ,order-items)))
+         (token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json"))))
+    (unless token
+      (error "Token :zakupay-token not found in config"))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          (cl-json:decode-json-from-string body)
+          (error "HTTP request failed with status ~A, body: ~A" status body)))))
+
+
+;; Убедитесь, что yason загружен (добавьте в начало файла)
+;; (ql:quickload :yason)
+
+;; Убедитесь, что yason загружен
+;; (ql:quickload :yason)
+
+(defun create-order-from-list (items-list
+                               &key (name "Заказ через API")
+                                    (project-id 6)
+                                    (finish-date "2026-06-10")
+                                    (source-account-id 34)
+                                    (consignee-id 2)
+                                    (region-id 30)
+                                    (responsible-id 222)
+                                    (delay 35)
+                                    (external-id 1744320000)
+                                    (good-position-external-id "000000004100008693"))
+  (load-config)
+  (unless items-list
+    (error "Список позиций не может быть пустым"))
+  (let* ((order-items
+           (loop for (name quantity code) in items-list
+                 collect `(("goodName" . ,name)
+                           ("count" . ,quantity)
+                           ("unit" . (("id" . ,code)))
+                           ("analogAllow" . nil)
+                           ("innerComment" . "")
+                           ("goodPosition" . (("externalId" . ,good-position-external-id))))))
+         (payload `(("name" . ,name)
+                    ("project" . (("id" . ,project-id)))
+                    ("state" . "DRAFT")
+                    ("finishDate" . ,finish-date)
+                    ("sourceAccount" . (("id" . ,source-account-id)))
+                    ("consignee" . (("id" . ,consignee-id)))
+                    ("region" . (("id" . ,region-id)))
+                    ("responsible" . (("id" . ,responsible-id)))
+                    ("delay" . ,delay)
+                    ("externalId" . ,external-id)
+                    ("orderItems" . ,order-items)))
+         (token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json")))
+         (json-string (cl-json:encode-json-to-string payload)))
+    (unless token
+      (error "Token :zakupay-token not found in config"))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content json-string)
+      (if (= status 200)
+          body
+          (error "HTTP request failed with status ~A, body: ~A" status body)))))
+
+
+
+
+
+
 
 (defun create-order ()
   (let* ((token (gethash :zakupay-token *config*))
@@ -1165,7 +1274,7 @@
                                           (cons "analogAllow" nil)
                                           (cons "innerComment" "Тест")
                                           (cons "goodPosition" (list (cons "externalId" "000000004100008693"))))
-                                    (list (cons "goodName" "Crude Oil Cad")
+                                          (list (cons "goodName" "Crude Oil Cad")
                                           (cons "count" 1)
                                           (cons "unit" (list (cons "id" 1)))
                                           (cons "analogAllow" nil)
@@ -1749,6 +1858,11 @@
 
 
 ;; sbcl --load hello.lisp      --eval '(hello:test-synteka-token)'
+
+
+;;;      sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)))'
+
+
 
 ;;      sbcl --load hello.lisp      --eval '(hello:get-offers)'
 ;; (:GLPI-BASE-URL . "https://glpi.upshepard.ru") 
