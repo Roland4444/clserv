@@ -18,7 +18,7 @@
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
-  #:cr-order  #:test-extract-items #:test-unit-to-code
+  #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1108,7 +1108,33 @@
 ;           (cl-json:decode-json-from-string body)
 ;           (error "HTTP request failed with status ~A" status)))))
 
+(defun parse-item-line (line)
+  "Разбирает строку вида '1) Доска 25х100 - 20 шт.'.
+   Возвращает список (НАЗВАНИЕ КОЛИЧЕСТВО КОД_ЕДИНИЦЫ) или NIL в случае ошибки."
+  (let ((paren-pos (position #\) line)))
+    (unless paren-pos (return-from parse-item-line nil))
+    (let ((name-start (1+ paren-pos)))
+      (let ((dash-pos (search " - " line :start2 name-start)))
+        (unless dash-pos (return-from parse-item-line nil))
+        (let ((dash-abs dash-pos)
+              (name (string-trim " " (subseq line name-start dash-pos)))
+              (rest (subseq line (+ dash-pos 3))))
+          (let ((space-pos (position #\space rest :from-end t)))
+            (unless space-pos (return-from parse-item-line nil))
+            (let* ((quantity-str (string-trim " " (subseq rest 0 space-pos)))
+                   (unit-str (string-trim " " (subseq rest (1+ space-pos))))
+                   (quantity-str (substitute #\. #\, quantity-str))
+                   (quantity (read-from-string quantity-str))
+                   (code (unit-to-code unit-str)))
+              (unless code (return-from parse-item-line nil))
+              (list name quantity code))))))))
 
+
+(defun test-parse-item-line ()
+  (let ((result (parse-item-line "1) Доска 25х100 - 20 шт."))
+        (expected '("Доска 25х100" 20 1)))
+    (assert (equal result expected))
+    (format t "Тест parse-item-line пройден!~%")))
 
 (defun unit-to-code (unit)
   "Возвращает числовой код единицы измерения (1–7) или NIL, если единица не распознана."
