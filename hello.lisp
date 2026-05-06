@@ -1109,10 +1109,25 @@
 ;           (cl-json:decode-json-from-string body)
 ;           (error "HTTP request failed with status ~A" status)))))
 
+(defun replace-all (part replacement string)
+  (with-output-to-string (out)
+    (loop with part-len = (length part)
+          for old-pos = 0 then (+ pos part-len)
+          for pos = (search part string :start2 old-pos)
+          do (write-string string out :start old-pos :end (or pos (length string)))
+          when pos do (write-string replacement out)
+          while pos)))
+
 
 (defun parse-items-block (text)
   "Разбирает многострочный текст, извлекает все позиции вида N) ... - ... .
    Возвращает список результатов вызовов parse-item-line для каждой подходящей строки."
+    (with-open-file (stream "out.txt"
+                        :direction :output
+                        :if-exists :supersede
+                        :if-does-not-exist :create)
+    (write-string text stream))
+
   (let ((items '()))
     (with-input-from-string (stream text)
       (loop for line = (read-line stream nil)
@@ -1161,14 +1176,15 @@
     (format t "Тест parse-items-block__ пройден!~%")
     result))
 
-
 (defun test-parse-items-block2 ()
-  (let* ((text (format nil "Для производства работ по объекту Рыбацкая прошу согласовать :~%1) Клей для газоблока - 240 шт~%~%Конт. тел. 89170911410 Дмитрий"))
-         (expected '(("Клей для газоблока" 240 1)))
+  (let* ((text (format nil "1) Доска 25х100 - 20 шт.~%2) Саморезы 3,5x51 - 1000 шт.~%3) Гвозди 100 мм. - 10 кг."))
+         (expected '(("Доска 25х100" 20 1)
+                     ("Саморезы 3,5x51" 1000 1)
+                     ("Гвозди 100 мм." 10 5)))
          (result (parse-items-block text)))
     (assert (equal result expected))
-    (format t "Тест parse-items-block2 пройден!~%")
-    result))    
+    (format t "Тест parse-items-block пройден!~%")
+    result))
 
 
 
