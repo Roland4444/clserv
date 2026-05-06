@@ -18,7 +18,8 @@
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
-  #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block 
+  #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
+  #:test-parse-items-block__
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1151,6 +1152,25 @@
     (assert (equal result expected))
     (format t "Тест parse-items-block пройден!~%")
     result))
+
+(defun test-parse-items-block__ ()
+  (let* ((text (format nil "1) Клей для газоблока - 240 шт"))
+         (expected '(("Клей для газоблока" 240 1)))
+         (result (parse-items-block text)))
+    (assert (equal result expected))
+    (format t "Тест parse-items-block__ пройден!~%")
+    result))
+
+
+(defun test-parse-items-block2 ()
+  (let* ((text (format nil "Для производства работ по объекту Рыбацкая прошу согласовать :~%1) Клей для газоблока - 240 шт~%~%Конт. тел. 89170911410 Дмитрий"))
+         (expected '(("Клей для газоблока" 240 1)))
+         (result (parse-items-block text)))
+    (assert (equal result expected))
+    (format t "Тест parse-items-block2 пройден!~%")
+    result))    
+
+
 
 (defun test-parse-item-line ()
   (let ((result (parse-item-line "1) Доска 25х100 - 20 шт."))
