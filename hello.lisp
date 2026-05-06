@@ -1188,22 +1188,8 @@
           (cl-json:decode-json-from-string body)
           (error "HTTP request failed with status ~A, body: ~A" status body)))))
 
-
-;; Убедитесь, что yason загружен (добавьте в начало файла)
-;; (ql:quickload :yason)
-
-;; Убедитесь, что yason загружен
-;; (ql:quickload :yason)
-
-
-
-
-
-
-
-
-
-(defun create-order-from-list (items-list
+;;;;        sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)) t)'
+(defun create-order-from-list (items-list reload-config
                                &key (name "Заказ через API")
                                     (project-id 6)
                                     (finish-date "2026-06-10")
@@ -1214,7 +1200,8 @@
                                     (delay 35)
                                     (external-id 1744320000)
                                     (good-position-external-id "000000004100008693"))
-  (load-config)
+  (when reload-config
+    (load-config))  
   (unless items-list
     (error "Список позиций не может быть пустым"))
   (let* ((order-items
@@ -1870,6 +1857,7 @@
 
 ;;;      sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)))'
 
+;;;;        sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)) t)'
 
 
 ;;      sbcl --load hello.lisp      --eval '(hello:get-offers)'
