@@ -19,7 +19,7 @@
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
-  #:test-parse-items-block__
+  #:test-parse-items-block__  #:test-parse-strings
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1185,6 +1185,12 @@
     (assert (equal result expected))
     (format t "Тест parse-items-block пройден!~%")
     result))
+
+(defun test-parse-strings()
+    (test-parse-items-block )
+    (test-parse-items-block__)
+    (test-parse-items-block2 )
+)
 
 
 
