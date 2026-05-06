@@ -18,7 +18,7 @@
   #:test-compute-deadline #:testExtractToken  #:test-replace-html-links
   #:test-headers-simple   #:send-btrx24-chat  #:get-offers  #:load-config
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
-  #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line
+  #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block 
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1108,6 +1108,18 @@
 ;           (cl-json:decode-json-from-string body)
 ;           (error "HTTP request failed with status ~A" status)))))
 
+
+(defun parse-items-block (text)
+  "Разбирает многострочный текст, извлекает все позиции вида N) ... - ... .
+   Возвращает список результатов вызовов parse-item-line для каждой подходящей строки."
+  (let ((items '()))
+    (with-input-from-string (stream text)
+      (loop for line = (read-line stream nil)
+            while line
+            for result = (parse-item-line line)
+            when result do (push result items)))
+    (nreverse items)))
+
 (defun parse-item-line (line)
   "Разбирает строку вида '1) Доска 25х100 - 20 шт.'.
    Возвращает список (НАЗВАНИЕ КОЛИЧЕСТВО КОД_ЕДИНИЦЫ) или NIL в случае ошибки."
@@ -1129,6 +1141,16 @@
               (unless code (return-from parse-item-line nil))
               (list name quantity code))))))))
 
+
+(defun test-parse-items-block ()
+  (let* ((text (format nil "1) Доска 25х100 - 20 шт.~%2) Саморезы 3,5x51 - 1000 шт.~%3) Гвозди 100 мм. - 10 кг."))
+         (expected '(("Доска 25х100" 20 1)
+                     ("Саморезы 3,5x51" 1000 1)
+                     ("Гвозди 100 мм." 10 5)))
+         (result (parse-items-block text)))
+    (assert (equal result expected))
+    (format t "Тест parse-items-block пройден!~%")
+    result))
 
 (defun test-parse-item-line ()
   (let ((result (parse-item-line "1) Доска 25х100 - 20 шт."))
