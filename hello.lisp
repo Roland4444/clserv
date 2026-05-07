@@ -1317,28 +1317,33 @@
 
 
 (defun parse-item-line (line)
-  (let ((dash-pos (position #\- line)))               ; ищем первый дефис
-    (unless dash-pos
-      (return-from parse-item-line nil))
-    (let* ((name (string-trim " " (subseq line 0 dash-pos)))
-           (rest (string-trim " " (subseq line (1+ dash-pos))))
-           (space-pos (position #\space rest :from-end t)))
-      (if space-pos
-          ;; Есть пробел – разделяем количество и единицу
-          (let* ((quantity-str (subseq rest 0 space-pos))
-                 (unit-str (subseq rest (1+ space-pos)))
-                 (quantity (read-from-string (substitute #\. #\, quantity-str)))
-                 (code (unit-to-code unit-str)))
-            (list name quantity code))
-          ;; Нет пробела – ищем цифры в начале правой части
-          (let* ((num-start (position-if #'digit-char-p rest))
-                 (num-end (or (position-if-not #'digit-char-p rest :start num-start)
-                              (length rest)))
-                 (quantity-str (subseq rest num-start num-end))
-                 (unit-str (string-trim " " (subseq rest num-end)))
-                 (quantity (read-from-string quantity-str))
-                 (code (unit-to-code unit-str)))
-            (list name quantity code))))))
+  ;; Удаляем начальный номер в формате "1) " или "1) " (с пробелом)
+  (let ((trimmed line)
+        (paren-pos (position #\) line)))
+    (when (and paren-pos (< paren-pos (length line)))
+      (setf trimmed (string-trim " " (subseq line (1+ paren-pos)))))
+    (let ((dash-pos (position #\- trimmed)))
+      (unless dash-pos
+        (return-from parse-item-line nil))
+      (let* ((name (string-trim " " (subseq trimmed 0 dash-pos)))
+             (rest (string-trim " " (subseq trimmed (1+ dash-pos))))
+             (space-pos (position #\space rest :from-end t)))
+        ;; Если после дефиса есть пробел – разделяем по нему
+        (if space-pos
+            (let* ((quantity-str (subseq rest 0 space-pos))
+                   (unit-str (subseq rest (1+ space-pos)))
+                   (quantity (read-from-string (substitute #\. #\, quantity-str)))
+                   (code (unit-to-code unit-str)))
+              (list name quantity code))
+            ;; Если пробела нет – ищем цифры в начале (например, "400метров")
+            (let* ((num-start (position-if #'digit-char-p rest))
+                   (num-end (or (position-if-not #'digit-char-p rest :start num-start)
+                                (length rest)))
+                   (quantity-str (subseq rest num-start num-end))
+                   (unit-str (string-trim " " (subseq rest num-end)))
+                   (quantity (read-from-string quantity-str))
+                   (code (unit-to-code unit-str)))
+              (list name quantity code)))))))
 
 (defun parse-item-line-bak (line)
   "Разбирает строку вида '1) Доска 25х100 - 20 шт.'.
@@ -1409,11 +1414,12 @@
     result))
 
 
-(defun test-parse-strings()
+(defun test-parse-strings()   ;;;;    sbcl --load hello.lisp --eval '(hello:test-parse-strings)'
     (test-parse-items-block )
     (test-parse-items-block__)
     (test-parse-items-block2 )
     (test-parse-items-block4 )
+    (test-parse-items-block4)
 )
 
 
