@@ -330,6 +330,59 @@
           (setf (hunchentoot:return-code*) 400)
           "{\"error\": \"Missing input parameter\"}"))))
 
+
+(defun current-time-string ()
+  (multiple-value-bind (second minute hour day month year)
+      (get-decoded-time)
+    (format nil "~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d"
+            year month day hour minute second)))
+
+;;; Логирование запроса в файл
+(defun log-request-to-file (input author quotes-author uuid)
+  (with-open-file (log-stream "reqpr.log"
+                              :direction :output
+                              :if-exists :append
+                              :if-does-not-exist :create
+                              :external-format :utf-8)
+    (format log-stream "[~A]~%  input: ~S~%  author: ~S~%  quotes_author: ~S~%  uuid: ~S~%~%"
+            (current-time-string) input author quotes-author uuid)))
+
+;;; Обработчик HTTP-запроса
+(hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid)
+  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+  (let ((input-val (or input (hunchentoot:post-parameter "input")))
+        (author-val (or author (hunchentoot:post-parameter "author")))
+        (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
+        (uuid-val (or uuid (hunchentoot:post-parameter "uuid"))))
+    (if (and input-val author-val quotes-author-val uuid-val)
+        (progn
+          (log-request-to-file input-val author-val quotes-author-val uuid-val)
+          (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%"
+                  input-val author-val quotes-author-val uuid-val)
+          (cl-json:encode-json-to-string '((:status . "ok") (:message . "Data received"))))
+        (progn
+          (setf (hunchentoot:return-code*) 400)
+          (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
+
+
+; (hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid)
+;   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+;   (let ((input-val (or input (hunchentoot:post-parameter "input")))
+;         (author-val (or author (hunchentoot:post-parameter "author")))
+;         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
+;         (uuid-val (or uuid (hunchentoot:post-parameter "uuid"))))
+;     (if (and input-val author-val quotes-author-val uuid-val)
+;         (progn
+;           (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%"
+;                   input-val author-val quotes-author-val uuid-val)
+;           (cl-json:encode-json-to-string `((:status . "ok") (:message . "Data received"))))
+;         (progn
+;           (setf (hunchentoot:return-code*) 400)
+;           (cl-json:encode-json-to-string `((:error . "Missing parameters")))))))      
+
+
+
+
 (hunchentoot:define-easy-handler (google-redirect :uri "/google") ()
   (hunchentoot:redirect "https://romach.space/chat"))
 
@@ -1875,25 +1928,25 @@
 (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
 (setf hunchentoot:*session-gc-frequency* 60)
   ;; Запускаем фоновый поток для обработки заявок
-(bt:make-thread
-  (lambda ()
-    (loop
-      (sleep 10)
-      (handler-case
-          (when (gethash :processing-enabled *config*)
-            (scan-requests))
-        (error (e)
-          (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
-          (log-error-to-file e)
-          (finish-output nil)))))
-  :name "request-processor")
-  (bt:make-thread
-    (lambda ()
-      (loop
-        (sleep 10)   ; интервал сканирования
-        (when (gethash :processing-enabled *config*)
-          (scan-requests))))
-    :name "request-processor")
+; (bt:make-thread
+;   (lambda ()
+;     (loop
+;       (sleep 10)
+;       (handler-case
+;           (when (gethash :processing-enabled *config*)
+;             (scan-requests))
+;         (error (e)
+;           (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
+;           (log-error-to-file e)
+;           (finish-output nil)))))
+;   :name "request-processor")
+;   (bt:make-thread
+;     (lambda ()
+;       (loop
+;         (sleep 10)   ; интервал сканирования
+;         (when (gethash :processing-enabled *config*)
+;           (scan-requests))))
+;     :name "request-processor")
   
   ;; Запуск сервера
   (start-server)
