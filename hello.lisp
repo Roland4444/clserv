@@ -1294,6 +1294,9 @@
           while pos)))
 
 
+
+
+
 (defun parse-items-block (text)
   "Разбирает многострочный текст, извлекает все позиции вида N) ... - ... .
    Возвращает список результатов вызовов parse-item-line для каждой подходящей строки."
@@ -1311,7 +1314,33 @@
             when result do (push result items)))
     (nreverse items)))
 
+
+
 (defun parse-item-line (line)
+  (let ((dash-pos (position #\- line)))               ; ищем первый дефис
+    (unless dash-pos
+      (return-from parse-item-line nil))
+    (let* ((name (string-trim " " (subseq line 0 dash-pos)))
+           (rest (string-trim " " (subseq line (1+ dash-pos))))
+           (space-pos (position #\space rest :from-end t)))
+      (if space-pos
+          ;; Есть пробел – разделяем количество и единицу
+          (let* ((quantity-str (subseq rest 0 space-pos))
+                 (unit-str (subseq rest (1+ space-pos)))
+                 (quantity (read-from-string (substitute #\. #\, quantity-str)))
+                 (code (unit-to-code unit-str)))
+            (list name quantity code))
+          ;; Нет пробела – ищем цифры в начале правой части
+          (let* ((num-start (position-if #'digit-char-p rest))
+                 (num-end (or (position-if-not #'digit-char-p rest :start num-start)
+                              (length rest)))
+                 (quantity-str (subseq rest num-start num-end))
+                 (unit-str (string-trim " " (subseq rest num-end)))
+                 (quantity (read-from-string quantity-str))
+                 (code (unit-to-code unit-str)))
+            (list name quantity code))))))
+
+(defun parse-item-line-bak (line)
   "Разбирает строку вида '1) Доска 25х100 - 20 шт.'.
    Возвращает список (НАЗВАНИЕ КОЛИЧЕСТВО КОД_ЕДИНИЦЫ) или NIL в случае ошибки."
   (let ((paren-pos (position #\) line)))
@@ -1368,11 +1397,11 @@
 (defun test-parse-items-block4 ()  ;;;;    sbcl --load hello.lisp --eval '(hello:test-parse-items-block4)'
   (let* ((text (format nil "Заявка Шагов~%Труюа ppr ду50мм апельсинка -400метров~%Тройник ppr 50×25×50- 135шт~%Заглушка ppr ду25мм- 135шт~%Хомут металлический в сборе на ду50мм - 405шт~%Изоляция энергофоекс на ду50мм- 400метров"))
 
-         (expected '(("Труюа ppr ду50мм апельсинка" 400 3)
+         (expected '(("Труюа ppr ду50мм апельсинка" 400 2)
                      ("Тройник ppr 50×25×50" 135 1)
                      ("Заглушка ppr ду25мм" 135 1)
                      ("Хомут металлический в сборе на ду50мм"  405 1)
-                     ("Изоляция энергофоекс на ду50мм" 400 3)))
+                     ("Изоляция энергофоекс на ду50мм" 400 2)))
                     
          (result (parse-items-block text)))
     (assert (equal result expected))
@@ -1395,7 +1424,7 @@
     (assert (equal result expected))
     (format t "Тест parse-item-line пройден!~%")))
 
-(defun unit-to-code (unit)
+(defun unit-to-code2 (unit)
   "Возвращает числовой код единицы измерения (1–7) или NIL, если единица не распознана."
   (let ((normalized (string-trim "." unit)))  ; удаляем точки по краям
     (cond
@@ -1407,6 +1436,19 @@
       ((member normalized '("м2" "кв.м" "квадратный метр") :test #'string-equal) 6)
       ((member normalized '("м3" "куб.м" "кубический метр") :test #'string-equal) 7)
       (t nil))))                  ; аналог None в Rust
+
+
+(defun unit-to-code (unit-str)
+  (let ((normalized (string-trim "." unit-str)))
+    (cond
+      ((member normalized '("шт" "штук" "штуки") :test #'string-equal) 1)
+      ((member normalized '("м" "метр" "метра" "метров") :test #'string-equal) 2)
+      ((member normalized '("м.п" "п.м" "пог.м" "мп") :test #'string-equal) 3)
+      ((member normalized '("л" "литр" "литра") :test #'string-equal) 4)
+      ((member normalized '("кг" "килограмм" "килограмма") :test #'string-equal) 5)
+      ((member normalized '("м2" "кв.м" "квадратный метр") :test #'string-equal) 6)
+      ((member normalized '("м3" "куб.м" "кубический метр") :test #'string-equal) 7)
+      (t (warn "Неизвестная единица измерения: ~A, используем 1 (шт)" unit-str) 1))))
 
 (unit-to-code "шт.")   ; => 1
 (unit-to-code "кг")    ; => 5               ;; 1 - шт, 2 - м,  3 - м .п. 4 - литр, 5 =- кг, 6 квадратный метр,  7 - кубический метр, 
