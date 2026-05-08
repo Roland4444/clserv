@@ -1307,7 +1307,7 @@
                         (cons "state" "DRAFT")
                         (cons "finishDate" "2026-06-10")
              
-                        (cons "sourceAccount" (list (cons "id" 34)))
+                        (cons "sourceAccount" (list (cons "id" 7)))            ;;; 34)))     <===Выгрузка банковских счетов плательщиков.xlsx
                         (cons "consignee" (list (cons "id" 2)))     ; ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СПЕЦИАЛИЗИРОВАННЫЙ ЗАСТРОЙЩИК "РЭС-ТЕТРИС" #2           Грузополучатель
                         (cons "region" (list (cons "id" 30)))
                         (cons "responsible" (list (cons "id" 222)))   ; исполнитель
