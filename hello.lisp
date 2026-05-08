@@ -338,28 +338,30 @@
             year month day hour minute second)))
 
 ;;; Логирование запроса в файл
-(defun log-request-to-file (input author quotes-author uuid collab)
+(defun log-request-to-file (input author quotes-author uuid collab source_acc-val)
   (with-open-file (log-stream "reqpr.log"
                               :direction :output
                               :if-exists :append
                               :if-does-not-exist :create
                               :external-format :utf-8)
-    (format log-stream "[~A]~%  input: ~S~%  author: ~S~%  quotes_author: ~S~%  uuid: ~S~%~%  collab: ~S~%~%"
-            (current-time-string) input author quotes-author uuid collab)))
+    (format log-stream "[~A]~%  input: ~S~%  author: ~S~%  quotes_author: ~S~%  uuid: ~S~%~%  collab: ~S~%~% source_acc-val: ~S~%~%"
+            (current-time-string) input author quotes-author uuid collab source_acc-val)))
 
 ;;; Обработчик HTTP-запроса
-(hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid collab)
+(hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid collab source_acc)
   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
   (let ((input-val (or input (hunchentoot:post-parameter "input")))
         (author-val (or author (hunchentoot:post-parameter "author")))
         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
         (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
-        (collab-val (or collab (hunchentoot:post-parameter "collab"))))
+        (collab-val (or collab (hunchentoot:post-parameter "collab")))
+        (source_acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
+        )
     (if (and input-val author-val quotes-author-val uuid-val collab-val)
         (progn
-          (log-request-to-file input-val author-val quotes-author-val uuid-val collab-val)
-          (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%"
-                  input-val author-val quotes-author-val uuid-val collab-val)
+          (log-request-to-file input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
+          (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%, source_acc-val=~A~%"
+                  input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
           (cl-json:encode-json-to-string '((:status . "ok") (:message . "Data received"))))
         (progn
           (setf (hunchentoot:return-code*) 400)
@@ -1308,7 +1310,7 @@
                         (cons "state" "DRAFT")
                         (cons "finishDate" "2026-06-10")
              
-                        (cons "sourceAccount" (list (cons "id"  111)))   ;;; 7)))            ;;; 34)))     <===Выгрузка банковских счетов плательщиков.xlsx
+                        (cons "sourceAccount" (list (cons "id"  7)))   ;;; 7)))            ;;; 34)))     <===Выгрузка банковских счетов плательщиков.xlsx
                         (cons "consignee" (list (cons "id" 2)))     ; ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СПЕЦИАЛИЗИРОВАННЫЙ ЗАСТРОЙЩИК "РЭС-ТЕТРИС" #2           Грузополучатель
                         (cons "region" (list (cons "id" 30)))
                         (cons "responsible" (list (cons "id" 222)))   ; исполнитель
