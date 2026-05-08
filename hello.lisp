@@ -338,27 +338,28 @@
             year month day hour minute second)))
 
 ;;; Логирование запроса в файл
-(defun log-request-to-file (input author quotes-author uuid)
+(defun log-request-to-file (input author quotes-author uuid collab)
   (with-open-file (log-stream "reqpr.log"
                               :direction :output
                               :if-exists :append
                               :if-does-not-exist :create
                               :external-format :utf-8)
-    (format log-stream "[~A]~%  input: ~S~%  author: ~S~%  quotes_author: ~S~%  uuid: ~S~%~%"
-            (current-time-string) input author quotes-author uuid)))
+    (format log-stream "[~A]~%  input: ~S~%  author: ~S~%  quotes_author: ~S~%  uuid: ~S~%~%  collab: ~S~%~%"
+            (current-time-string) input author quotes-author uuid collab)))
 
 ;;; Обработчик HTTP-запроса
-(hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid)
+(hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid collab)
   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
   (let ((input-val (or input (hunchentoot:post-parameter "input")))
         (author-val (or author (hunchentoot:post-parameter "author")))
         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
-        (uuid-val (or uuid (hunchentoot:post-parameter "uuid"))))
-    (if (and input-val author-val quotes-author-val uuid-val)
+        (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
+        (collab-val (or collab (hunchentoot:post-parameter "collab"))))
+    (if (and input-val author-val quotes-author-val uuid-val collab-val)
         (progn
-          (log-request-to-file input-val author-val quotes-author-val uuid-val)
-          (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%"
-                  input-val author-val quotes-author-val uuid-val)
+          (log-request-to-file input-val author-val quotes-author-val uuid-val collab-val)
+          (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%"
+                  input-val author-val quotes-author-val uuid-val collab-val)
           (cl-json:encode-json-to-string '((:status . "ok") (:message . "Data received"))))
         (progn
           (setf (hunchentoot:return-code*) 400)
