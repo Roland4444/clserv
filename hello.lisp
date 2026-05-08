@@ -21,7 +21,7 @@
   #:test-synteka-token   #:test-all  #:create-order   #:sbis-auth-and-get-user  
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
-  #:create-order-from-list   #:test-parse-items-block4
+  #:create-order-from-list   #:test-parse-items-block4  #:test-parse-items-block5
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -366,6 +366,57 @@
         (progn
           (setf (hunchentoot:return-code*) 400)
           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
+
+
+(hunchentoot:define-easy-handler (reqprc :uri "/reqprc") 
+    (input author quotes_author uuid collab source_acc items)
+  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+  
+  (flet ((get-param (val param-name)
+           (or val (hunchentoot:post-parameter param-name))))
+    
+    (let ((input-val      (get-param input "input"))
+          (author-val     (get-param author "author"))
+          (quotes-author-val (get-param quotes_author "quotes_author"))
+          (uuid-val       (get-param uuid "uuid"))
+          (collab-val     (get-param collab "collab"))
+          (source-acc-val (get-param source_acc "source_acc"))
+         )
+      
+      ;; Проверка обязательных параметров (items тоже обязателен)
+      (if (and input-val author-val quotes-author-val uuid-val collab-val source-acc-val )
+          (progn
+            (log-request-to-file input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+            (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A, collab=~A, source_acc=~A"
+                    input-val author-val quotes-author-val uuid-val collab-val source-acc-val )
+            
+            ;; Парсим source-account-id как целое число
+            (let ((source-account-id (parse-integer source-acc-val :junk-allowed t)))
+              (unless (integerp source-account-id)
+                (setf (hunchentoot:return-code*) 400)
+                (return-from reqprc 
+                  (cl-json:encode-json-to-string '((:error . "source_acc must be an integer")))))
+              
+              (let ((project-id 6)   ; пока фиксированный проект
+                    (items-text input-val))
+                (handler-case
+                    (let ((order-result (create-order source-account-id project-id items-text)))
+                      ;; Возвращаем результат от API (уже декодированный JSON)
+                      (cl-json:encode-json-to-string order-result))
+                  (error (e)
+                    (setf (hunchentoot:return-code*) 500)
+                    (cl-json:encode-json-to-string 
+                     `((:error . ,(format nil "Order creation failed: ~A" e)))))))))
+          
+          ;; Не хватает параметров
+          (progn
+            (setf (hunchentoot:return-code*) 400)
+            (cl-json:encode-json-to-string '((:error . "Missing parameters"))))))))
+
+
+
+
+
 
 
 ; (hunchentoot:define-easy-handler (reqpr :uri "/reqpr") (input author quotes_author uuid)
@@ -1338,6 +1389,41 @@
           (error "HTTP request failed with status ~A, body: ~A" status body)))))
 
 
+(defun create-order (source-account-id project-id items-text)
+  "Создаёт заказ через API.
+   source-account-id: ID счёта плательщика
+   project-id: ID проекта
+   items-text: многострочный текст для генерации позиций заказа"
+  (let* ((token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json")))
+         (items-list (parse-items-block items-text))
+         ;; Получаем текущее время и формируем имя заказа
+         (order-name
+           (multiple-value-bind (second minute hour day month year)
+               (get-decoded-time)
+             (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"
+                     year month day hour minute second)))
+         (payload `(("name" . ,order-name)
+                    ("project" . (("id" . ,project-id)))
+                    ("state" . "DRAFT")
+                    ("finishDate" . "2026-06-10")
+                    ("sourceAccount" . (("id" . ,source-account-id)))
+                    ("consignee" . (("id" . 2)))
+                    ("region" . (("id" . 30)))
+                    ("responsible" . (("id" . 222)))
+                    ("delay" . 35)
+                    ("externalId" . ,(get-universal-time))   ; уникальный числовой ID
+                    ("orderItems" . ,items-list))))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          (cl-json:decode-json-from-string body)
+          (error "HTTP request failed with status ~A, body: ~A" status body)))))
+
+
 
 
 (defun replace-all (part replacement string)
@@ -1468,6 +1554,30 @@
     (assert (equal result expected))
     (format t "Тест parse-items-block4 пройден!~%")
     result))
+
+(defun test-parse-items-block5 ()  ;;;;    sbcl --load hello.lisp --eval '(hello:test-parse-items-block5)'
+  (let* ((text (format nil "Прошу согласовать материал~%1.кругляк металлический 16-ый-120м~%2.полоса металлическая 40/5-100м~%3.мастика-2кг~%4.электроды 3ка-3кг"))
+
+         (expected '(("кругляк металлический 16-ый" 120 2)
+                     ("полоса металлическая 40/5" 100 2)
+                     ("мастика" 2 5)
+                     ("электроды 3ка"  3 5)
+                    ))
+                    
+         (result (parse-items-block text)))
+    (assert (equal result expected))
+    (format t "Тест parse-items-block5 пройден!~%")
+    result))
+
+; ebugger invoked on a SIMPLE-ERROR in thread
+; #<THREAD "main thread" RUNNING {1001358073}>:
+;   The assertion (EQUAL HELLO::RESULT HELLO::EXPECTED) failed with HELLO::RESULT
+;   =
+;   (("1.кругляк металлический 16" 120 2) ("2.полоса металлическая 40/5" 100 2)
+;    ("3.мастика" 2 5) ("4.электроды 3ка" 3 5)),
+;   HELLO::EXPECTED =
+;   (("кругляк металлический 16-ый" 120 2) ("полоса металлическая 40/5" 100 2)
+;    ("мастика" 2 5) ("электроды 3ка" 3 5)).
 
 
 (defun test-parse-strings()   ;;;;    sbcl --load hello.lisp --eval '(hello:test-parse-strings)'
