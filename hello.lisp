@@ -1240,7 +1240,7 @@
 
 
 
-(defparameter *webhook-log-file* #P"glip-webhook.log"
+(defparameter *webhook-log-file* #P"./glip-webhook.log"
   "Путь к файлу для сохранения логов вебхуков.")
 
 (defun log-webhook-request (headers json-data raw-body)
