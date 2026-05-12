@@ -368,51 +368,109 @@
           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
 
 
-(hunchentoot:define-easy-handler (reqprc :uri "/reqprc") 
-    (input author quotes_author uuid collab source_acc items)
-  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
-  
-  (flet ((get-param (val param-name)
-           (or val (hunchentoot:post-parameter param-name))))
-    
-    (let ((input-val      (get-param input "input"))
-          (author-val     (get-param author "author"))
-          (quotes-author-val (get-param quotes_author "quotes_author"))
-          (uuid-val       (get-param uuid "uuid"))
-          (collab-val     (get-param collab "collab"))
-          (source-acc-val (get-param source_acc "source_acc"))
-         )
-      
-      ;; Проверка обязательных параметров (items тоже обязателен)
-      (if (and input-val author-val quotes-author-val uuid-val collab-val source-acc-val )
-          (progn
-            (log-request-to-file input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
-            (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A, collab=~A, source_acc=~A"
-                    input-val author-val quotes-author-val uuid-val collab-val source-acc-val )
-            
-            ;; Парсим source-account-id как целое число
-            (let ((source-account-id (parse-integer source-acc-val :junk-allowed t)))
-              (unless (integerp source-account-id)
-                (setf (hunchentoot:return-code*) 400)
-                (return-from reqprc 
-                  (cl-json:encode-json-to-string '((:error . "source_acc must be an integer")))))
-              
-              (let ((project-id 6)   ; пока фиксированный проект
-                    (items-text input-val))
-                (handler-case
-                    (let ((order-result (create-order source-account-id project-id items-text)))
-                      ;; Возвращаем результат от API (уже декодированный JSON)
-                      (cl-json:encode-json-to-string order-result))
-                  (error (e)
-                    (setf (hunchentoot:return-code*) 500)
-                    (cl-json:encode-json-to-string 
-                     `((:error . ,(format nil "Order creation failed: ~A" e)))))))))
-          
-          ;; Не хватает параметров
-          (progn
-            (setf (hunchentoot:return-code*) 400)
-            (cl-json:encode-json-to-string '((:error . "Missing parameters"))))))))
 
+
+
+(defun log-order-request (input author quotes-author uuid collab source-acc)
+  (with-open-file (log-stream "orders.log"
+                              :direction :output
+                              :if-exists :append
+                              :if-does-not-exist :create
+                              :external-format :utf-8)
+    (format log-stream "[~A]~%  input: ~S~%  author: ~S~%  quotes_author: ~S~%  uuid: ~S~%  collab: ~S~%  source_acc: ~S~%~%"
+            (multiple-value-bind (sec min hour day month year) (get-decoded-time)
+              (format nil "~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d" year month day hour min sec))
+            input author quotes-author uuid collab source-acc)))
+
+;;; Обработчик для создания заказа на основе текстовой заявки
+;;; Обработчик для создания заказа
+
+; (hunchentoot:define-easy-handler (reqprc :uri "/reqprc") (input author quotes_author uuid collab source_acc)
+;   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+;   (let ((input-val (or input (hunchentoot:post-parameter "input")))
+;         (author-val (or author (hunchentoot:post-parameter "author")))
+;         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
+;         (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
+;         (collab-val (or collab (hunchentoot:post-parameter "collab")))
+;         (source-acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
+;         (source-account-id 7)
+;         (project-id 6))
+;     (if (and input-val author-val quotes-author-val uuid-val collab-val)
+;         (handler-case
+;             (let ((cr (create-order source-account-id project-id input-val)))
+;               (log-order-request input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+;               (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A, collab=~A, source_acc=~A~%"
+;                       input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+;               (cl-json:encode-json-to-string `((:status . "ok") (:order-response . ,cr))))
+;           (error (e)
+;             (setf (hunchentoot:return-code*) 500)
+;             (cl-json:encode-json-to-string `((:error . ,(format nil "~A" e))))))
+;         (progn
+;           (setf (hunchentoot:return-code*) 400)
+;           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
+
+
+(hunchentoot:define-easy-handler (reqprc :uri "/reqprc") (input author quotes_author uuid collab source_acc)
+  (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+  (let ((input-val (or input (hunchentoot:post-parameter "input")))
+        (author-val (or author (hunchentoot:post-parameter "author")))
+        (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
+        (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
+        (collab-val (or collab (hunchentoot:post-parameter "collab")))
+        (source-acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
+        (source-account-id 7)
+        (project-id 6))
+    (if (and input-val author-val quotes-author-val uuid-val collab-val)
+        (handler-case
+            (let ((list-items (parse-items-block input-val)))
+              (if (null list-items)
+                  (progn
+                    (setf (hunchentoot:return-code*) 400)
+                    (cl-json:encode-json-to-string '((:error . "No valid items parsed from input"))))
+                (let ((cr (create-order-from-list list-items t
+                                                  :source-account-id source-account-id
+                                                  :project-id project-id)))
+                  (log-order-request input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+                  (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%, source_acc-val=~A~%"
+                          input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+                  (format t "Parsed items: ~S~%" list-items)
+                  (cl-json:encode-json-to-string `((:status . "ok") (:order-response . ,cr))))))
+          (error (e)
+            (setf (hunchentoot:return-code*) 500)
+            (cl-json:encode-json-to-string `((:error . ,(format nil "~A" e))))))
+        (progn
+          (setf (hunchentoot:return-code*) 400)
+          (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
+
+; (hunchentoot:define-easy-handler (reqprc :uri "/reqprc") (input author quotes_author uuid collab source_acc)
+;   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
+;   (let ((input-val (or input (hunchentoot:post-parameter "input")))
+;         (author-val (or author (hunchentoot:post-parameter "author")))
+;         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
+;         (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
+;         (collab-val (or collab (hunchentoot:post-parameter "collab")))
+;         (source_acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
+;         (source-account-id (7))
+;         (project-id (6))
+;         )
+;         (let ((list-items (parse-items-block input-val))
+;               (cr         (create-order source-account-id project-id input-val)))   ;; 7
+;              (format t "~%Parsed items: ~S~%" list-items)            
+;         ) 
+;         (if (and input-val author-val quotes-author-val uuid-val collab-val)
+;         (progn
+;           (log-order-request input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
+;           (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%, source_acc-val=~A~%"
+;                   input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
+;           (cl-json:encode-json-to-string '((:status . "ok") (:message . "Data received"))))
+;         (progn
+;           (setf (hunchentoot:return-code*) 400)
+;           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
+
+
+
+
+;;; Обработчик для создания заказа на основе текстовой заявки
 
 
 
@@ -1311,7 +1369,13 @@
     (load-config))  
   (unless items-list
     (error "Список позиций не может быть пустым"))
-  (let* ((order-items
+  (let* ( (order-name (multiple-value-bind (second minute hour day month year)
+                                           (get-decoded-time)
+                                           (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"year month day hour minute second)))
+    
+    
+    
+    (order-items
            (loop for (name quantity code) in items-list
                  collect `(("goodName" . ,name)
                            ("count" . ,quantity)
@@ -1319,7 +1383,7 @@
                            ("analogAllow" . nil)
                            ("innerComment" . "")
                            ("goodPosition" . (("externalId" . ,good-position-external-id))))))
-         (payload `(("name" . ,name)
+         (payload `(("name" . ,order-name)
                     ("project" . (("id" . ,project-id)))
                     ("state" . "DRAFT")
                     ("finishDate" . ,finish-date)
@@ -1456,9 +1520,30 @@
             when result do (push result items)))
     (nreverse items)))
 
-
-
 (defun parse-item-line (line)
+  ;; Удаляем начальный номер в формате "1)" или "1." (с возможным пробелом после)
+  (let ((trimmed line)
+        (num-end-pos (position-if (lambda (c) (or (char= c #\)) (char= c #\.))) line)))
+    (when (and num-end-pos (> num-end-pos 0))
+      (let ((start (1+ num-end-pos)))
+        (setf trimmed (string-trim " " (subseq line start)))))
+    ;; Ищем последний дефис в оставшейся строке
+    (let ((dash-pos (position #\- trimmed :from-end t)))
+      (unless dash-pos
+        (return-from parse-item-line nil))
+      (let ((name (string-trim " " (subseq trimmed 0 dash-pos)))
+            (rest (string-trim " " (subseq trimmed (1+ dash-pos)))))
+        ;; Отделяем количество от единицы измерения
+        (let* ((num-start (position-if #'digit-char-p rest))
+               (num-end (or (position-if-not #'digit-char-p rest :start num-start)
+                            (length rest)))
+               (quantity-str (subseq rest num-start num-end))
+               (unit-str (string-trim " " (subseq rest num-end)))
+               (quantity (read-from-string (substitute #\. #\, quantity-str)))
+               (code (unit-to-code unit-str)))
+          (list name quantity code))))))
+
+(defun parse-item-line-bak2 (line)
   ;; Удаляем начальный номер в формате "1) " или "1) " (с пробелом)
   (let ((trimmed line)
         (paren-pos (position #\) line)))
@@ -1586,6 +1671,7 @@
     (test-parse-items-block2 )
     (test-parse-items-block4 )
     (test-parse-items-block4)
+    (test-parse-items-block5)
 )
 
 
@@ -1611,6 +1697,21 @@
 
 
 (defun unit-to-code (unit-str)
+  (let ((normalized (string-trim "." unit-str)))
+    (cond
+      ((member normalized '("шт" "штук" "штуки") :test #'string-equal) 1)
+      ((member normalized '("м" "метр" "метра" "метров") :test #'string-equal) 2)
+      ((member normalized '("м.п" "п.м" "пог.м" "мп") :test #'string-equal) 3)
+      ((member normalized '("л" "литр" "литра") :test #'string-equal) 4)
+      ((member normalized '("кг" "килограмм" "килограмма") :test #'string-equal) 5)
+      ((member normalized '("м2" "кв.м" "квадратный метр") :test #'string-equal) 6)
+      ((member normalized '("м3" "куб.м" "кубический метр") :test #'string-equal) 7)
+      (t (warn "Неизвестная единица измерения: ~A, используем 1 (шт)" unit-str) 1))))
+
+
+
+
+(defun unit-to-code-bak (unit-str)
   (let ((normalized (string-trim "." unit-str)))
     (cond
       ((member normalized '("шт" "штук" "штуки") :test #'string-equal) 1)
