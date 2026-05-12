@@ -1263,17 +1263,13 @@
 
 
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
-  (let* ((raw-body (raw-post-data :force-text t))            ; (1) Сырой JSON
-         (parsed-data (decode-json-from-string raw-body))    ; (2) Парсим в Lisp-данные
-         (headers (request-headers*)))                       ; (3) Заголовки запроса
-    ;; Передаём всё в нашу функцию логирования
+  (let* ((raw-body (raw-post-data :force-text t))
+         (parsed-data (cl-json:decode-json-from-string raw-body))
+         (headers (headers-in*)))            ; <--- заменили на headers-in*
     (log-webhook-request headers parsed-data raw-body)
-    ;; Возвращаем успешный ответ
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
