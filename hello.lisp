@@ -1244,8 +1244,7 @@
   "Путь к файлу для сохранения логов вебхуков.")
 
 (defun log-webhook-request (headers json-data raw-body)
-  "Записывает всю информацию о запросе в лог-файл."
-  ;; Открываем файл для добавления (или создаём, если его нет)
+  "Записывает информацию о запросе в лог-файл, выводя JSON в читаемом виде."
   (with-open-file (log-stream *webhook-log-file*
                               :direction :output
                               :if-exists :append
@@ -1256,8 +1255,9 @@
                                 #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
       (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
       (format log-stream "Headers: ~S~%" headers)
-      (format log-stream "JSON Data (parsed): ~S~%" json-data)
-      (format log-stream "Raw Body: ~A~%" raw-body)
+      ;; Выводим распарсенные данные в читаемом виде (CLOS-объект или хеш-таблица)
+      (format log-stream "JSON Data (formatted): ~%~A~%" json-data)  ; или используйте cl-json:encode-json-to-string для красивой печати
+      ;;(format log-stream "Raw Body (ignored): ~A~%" raw-body) ; убираем raw body
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
