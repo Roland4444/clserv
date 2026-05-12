@@ -1239,6 +1239,42 @@
       ticket-id)))
 
 
+
+(defparameter *webhook-log-file* #P"glip-webhook.log"
+  "Путь к файлу для сохранения логов вебхуков.")
+
+(defun log-webhook-request (headers json-data raw-body)
+  "Записывает всю информацию о запросе в лог-файл."
+  ;; Открываем файл для добавления (или создаём, если его нет)
+  (with-open-file (log-stream *webhook-log-file*
+                              :direction :output
+                              :if-exists :append
+                              :if-does-not-exist :create)
+    (let ((timestamp (local-time:format-timestring
+                      nil (local-time:now)
+                      :format '((:year 4) #\- (:month 2) #\- (:day 2)
+                                #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
+      (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
+      (format log-stream "Headers: ~S~%" headers)
+      (format log-stream "JSON Data (parsed): ~S~%" json-data)
+      (format log-stream "Raw Body: ~A~%" raw-body)
+      (format log-stream "--- END WEBHOOK ---~%~%"))))
+
+
+
+(define-easy-handler (glpi-webhook :uri "/glwbhk") ()
+  (let* ((raw-body (raw-post-data :force-text t))            ; (1) Сырой JSON
+         (parsed-data (decode-json-from-string raw-body))    ; (2) Парсим в Lisp-данные
+         (headers (request-headers*)))                       ; (3) Заголовки запроса
+    ;; Передаём всё в нашу функцию логирования
+    (log-webhook-request headers parsed-data raw-body)
+    ;; Возвращаем успешный ответ
+    (setf (return-code*) 200
+          (content-type*) "text/plain")
+    "OK"))
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
