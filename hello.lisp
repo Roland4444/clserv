@@ -1244,15 +1244,14 @@
       (format t "GLPI тикет создан, ID: ~A~%" ticket-id)
       ticket-id)))
 
-(defun send-bitrix24-message (ticket-id ticket-name)
-  "Отправляет сообщение о новой заявке в Битрикс24, используя параметры из конфига."
+(defun send-to-bitrix24 (ticket-id ticket-name)
   (let ((url (gethash :bitrix-chat-url *config*))
         (chat-id (gethash :bitrix-chat-id *config*)))
     (when (and url chat-id)
-      (let* ((text (format nil "🔔 Новая заявка в GLPI~%📌 ID: ~A~%📋 Тема: ~A~%🔗 Ссылка: https://romach.space/front/ticket.form.php?id=~A"
-                           ticket-id ticket-name ticket-id))
+      (let* ((message (format nil "🔔 Новая заявка в GLPI~%📌 ID: ~A~%📋 Тема: ~A~%🔗 https://romach.space/front/ticket.form.php?id=~A"
+                              ticket-id ticket-name ticket-id))
              (payload `(("DIALOG_ID" . ,chat-id)
-                        ("MESSAGE" . ,text)
+                        ("MESSAGE" . ,message)
                         ("SYSTEM" . "Y"))))
         (handler-case
             (dex:post url
