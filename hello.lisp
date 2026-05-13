@@ -1301,7 +1301,7 @@
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
-(defun log-webhook-request (headers json-data raw-body path-1)
+(defun log-webhook-request-to-file (headers json-data raw-body path-1)
   (with-open-file (log-stream path-1
                               :direction :output
                               :if-exists :append
@@ -1343,7 +1343,7 @@
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
          (headers (headers-in*)))            ; <--- заменили на headers-in*
-    (log-webhook-request headers parsed-data raw-body "il.log")
+    (log-webhook-request-to-file headers parsed-data raw-body "il.log")
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
