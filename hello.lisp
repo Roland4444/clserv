@@ -1286,30 +1286,23 @@
 
 
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
-  (handler-case
-      (let* ((raw-body (raw-post-data :force-text t))
-             (headers (request-headers*))
-             (json-data (cl-json:decode-json-from-string raw-body)))
-        ;; логирование
-        (log-webhook-request headers json-data raw-body)
-
-        ;; ----- НОВАЯ ЧАСТЬ -----
-        (let ((event (cdr (assoc :event json-data))))
-          (when (string= event "new")
-            (let ((item (cdr (assoc :item json-data))))
-              (when item
-                (let ((id (cdr (assoc :id item)))
-                      (name (cdr (assoc :name item))))
-                  (when (and id name)
-                    (send-bitrix24-message id name)))))))
-
-        (setf (return-code*) 200
-              (content-type*) "text/plain")
-        "OK")
-    (error (e)
-      (format t "Ошибка: ~A~%" e)
-      (setf (return-code*) 500)
-      "Internal Server Error")))
+  (let* ((raw-body (raw-post-data :force-text t))
+         (parsed-data (cl-json:decode-json-from-string raw-body))
+         (headers (headers-in*)))
+    (log-webhook-request headers parsed-data raw-body)
+    ;; --- НОВАЯ ЧАСТЬ: отправка в Битрикс24 ---
+    (let ((event (cdr (assoc :event parsed-data))))
+      (when (string= event "new")
+        (let ((item (cdr (assoc :item parsed-data))))
+          (when item
+            (let ((id (cdr (assoc :id item)))
+                  (name (cdr (assoc :name item))))
+              (when (and id name)
+                (send-to-bitrix24 id name)))))))
+    ;; -----------------------------------------
+    (setf (return-code*) 200
+          (content-type*) "text/plain")
+    "OK"))
 
 
 
