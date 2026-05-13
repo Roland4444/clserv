@@ -1245,14 +1245,20 @@
       ticket-id)))
 
 (defun strip-html-tags (html-string)
-  (let ((result html-string))
-    (setf result (cl-ppcre:regex-replace-all "(?i)<br\\s*/?>" result #\Newline))
-    (setf result (cl-ppcre:regex-replace-all "(?i)</?p>" result #\Newline))
+  "Удаляет все HTML-теги из строки, заменяет <br> и <p> на перевод строки."
+  (let ((result html-string)
+        (newline (string #\Newline)))   ; строка с переводом строки
+    ;; Заменяем <br>, <p>, </p> и подобные на перевод строки
+    (setf result (cl-ppcre:regex-replace-all "(?i)<br\\s*/?>" result newline))
+    (setf result (cl-ppcre:regex-replace-all "(?i)</?p>" result newline))
+    ;; Удаляем все другие HTML-теги
     (setf result (cl-ppcre:regex-replace-all "<[^>]+>" result ""))
+    ;; Заменяем сущности
     (setf result (cl-ppcre:regex-replace-all "&nbsp;" result " "))
     (setf result (cl-ppcre:regex-replace-all "&lt;" result "<"))
     (setf result (cl-ppcre:regex-replace-all "&gt;" result ">"))
-    (setf result (cl-ppcre:regex-replace-all "\\n\\s*\\n" result (string #\Newline)))
+    ;; Убираем лишние пустые строки
+    (setf result (cl-ppcre:regex-replace-all "\\n\\s*\\n" result newline))
     (string-trim '(#\Newline #\Space) result)))
 
 
