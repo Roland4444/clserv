@@ -1341,25 +1341,24 @@
     nil))
 
 (defun get-bitrix24-user-id (email)
-  "Возвращает USER_ID пользователя Битрикс24 по email. Кеширует результат."
   (or (gethash email *user-id-cache*)
       (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
         (when bitrix-base
           (handler-case
               (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
                      (url (format nil "~Auser.get" base-url))
-                     (response (dex:get url :params `(("FILTER[EMAIL]" . ,email))))
-                     (json (cl-json:decode-json-from-string response))
-                     (result (cdr (assoc :result json))))
-                (when (and (listp result) result)
-                  (let ((user-id (cdr (assoc :id (car result)))))
-                    (when user-id
-                      (setf (gethash email *user-id-cache*) user-id)
-                      user-id))))
+                     (response (dex:get url :query `(("FILTER[EMAIL]" . ,email)))))   ; <--- :params -> :query
+                (format t "Ответ от Битрикс24: ~A~%" response)
+                (let ((json (cl-json:decode-json-from-string response))
+                      (result (cdr (assoc :result json))))
+                  (when (and (listp result) result)
+                    (let ((user-id (cdr (assoc :id (car result)))))
+                      (when user-id
+                        (setf (gethash email *user-id-cache*) user-id)
+                        user-id)))))
             (error (e)
               (format t "Ошибка получения USER_ID для ~A: ~A~%" email e)
               nil))))))
-
 
 (defun send-bitrix24-system-notify (user-id message &optional (tag "GLPI_TICKET"))
   "Отправляет системное уведомление (im.notify.system.add) пользователю Битрикс24."
