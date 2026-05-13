@@ -1316,6 +1316,71 @@
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
+(defvar *user-id-cache* (make-hash-table :test 'equal)
+  "Кеш email → USER_ID в Битрикс24.")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  ||\ ||
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  || \||
+
+
+(defun extract-requester-email (parsed-data)
+  "Извлекает email пользователя, создавшего заявку (role requester или user_recipient)."
+  (let ((item (cdr (assoc :item parsed-data))))
+    (when item
+      ;; 1) Пробуем поле :user-recipient
+      (let ((user-recipient (cdr (assoc :user-recipient item))))
+        (when user-recipient
+          (let ((email (cdr (assoc :name user-recipient))))
+            (when email (return-from extract-requester-email email)))))
+      ;; 2) Ищем в team с ролью "requester"
+      (let ((team (cdr (assoc :team item))))
+        (when (listp team)
+          (dolist (member team)
+            (when (and (string= (cdr (assoc :role member)) "requester")
+                       (cdr (assoc :name member)))
+              (return-from extract-requester-email (cdr (assoc :name member))))))))
+    nil))
+
+(defun get-bitrix24-user-id (email)
+  "Возвращает USER_ID пользователя Битрикс24 по email. Кеширует результат."
+  (or (gethash email *user-id-cache*)
+      (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
+        (when bitrix-base
+          (handler-case
+              (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
+                     (url (format nil "~Auser.get" base-url))
+                     (response (dex:get url :params `(("FILTER[EMAIL]" . ,email))))
+                     (json (cl-json:decode-json-from-string response))
+                     (result (cdr (assoc :result json))))
+                (when (and (listp result) result)
+                  (let ((user-id (cdr (assoc :id (car result)))))
+                    (when user-id
+                      (setf (gethash email *user-id-cache*) user-id)
+                      user-id))))
+            (error (e)
+              (format t "Ошибка получения USER_ID для ~A: ~A~%" email e)
+              nil))))))
+
+
+(defun send-bitrix24-system-notify (user-id message &optional (tag "GLPI_TICKET"))
+  "Отправляет системное уведомление (im.notify.system.add) пользователю Битрикс24."
+  (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
+    (when (and bitrix-base user-id)
+      (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
+             (notify-url (format nil "~Aim.notify.system.add" base-url))
+             (payload `(("USER_ID" . ,user-id)
+                        ("MESSAGE" . ,message)
+                        ("TAG" . ,tag))))
+        (handler-case
+            (dex:post notify-url
+              :content (cl-json:encode-json-to-string payload)
+              :headers '(("Content-Type" . "application/json; charset=utf-8")))
+          (error (e)
+            (format t "Ошибка отправки системного уведомления: ~A~%" e)))))))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
   (let* ((raw-body (raw-post-data :force-text t))
@@ -1338,15 +1403,40 @@
 
 
 
-
 (define-easy-handler (glpi-webhook-ils :uri "/ils") ()
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
-         (headers (headers-in*)))            ; <--- заменили на headers-in*
+         (headers (headers-in*)))
+    ;; Логируем в il.log
     (log-webhook-request-to-file headers parsed-data raw-body "il.log")
+    
+    ;; Извлекаем email заявителя и отправляем системное уведомление
+    (let* ((email (extract-requester-email parsed-data))
+           (user-id (when email (get-bitrix24-user-id email))))
+      (when user-id
+        (let* ((item (cdr (assoc :item parsed-data)))
+               (ticket-id (cdr (assoc :id item)))
+               (status (cdr (assoc :status item)))
+               (status-name (if status (cdr (assoc :name status)) "изменена"))
+               (message (format nil "Заявка #~A ~A. Перейдите в ИТ Поддержку для просмотра."
+                                ticket-id status-name)))
+          (send-bitrix24-system-notify user-id message (format nil "GLPI_TICKET_~A" ticket-id)))))
+    
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
+
+
+
+
+; (define-easy-handler (glpi-webhook-ils :uri "/ils") ()
+;   (let* ((raw-body (raw-post-data :force-text t))
+;          (parsed-data (cl-json:decode-json-from-string raw-body))
+;          (headers (headers-in*)))            ; <--- заменили на headers-in*
+;     (log-webhook-request-to-file headers parsed-data raw-body "il.log")
+;     (setf (return-code*) 200
+;           (content-type*) "text/plain")
+;     "OK"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
