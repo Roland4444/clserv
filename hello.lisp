@@ -1245,18 +1245,13 @@
       ticket-id)))
 
 (defun strip-html-tags (html-string)
-  "Удаляет все HTML-теги из строки, заменяет <br> и <p> на перевод строки."
   (let ((result html-string))
-    ;; Заменяем <br>, <p>, </p> и подобные на перевод строки
     (setf result (cl-ppcre:regex-replace-all "(?i)<br\\s*/?>" result #\Newline))
     (setf result (cl-ppcre:regex-replace-all "(?i)</?p>" result #\Newline))
-    ;; Удаляем все другие HTML-теги (с атрибутами и без)
     (setf result (cl-ppcre:regex-replace-all "<[^>]+>" result ""))
-    ;; Заменяем сущности (&nbsp; &lt; и т.д.) – опционально
     (setf result (cl-ppcre:regex-replace-all "&nbsp;" result " "))
     (setf result (cl-ppcre:regex-replace-all "&lt;" result "<"))
     (setf result (cl-ppcre:regex-replace-all "&gt;" result ">"))
-    ;; Убираем лишние пустые строки
     (setf result (cl-ppcre:regex-replace-all "\\n\\s*\\n" result (string #\Newline)))
     (string-trim '(#\Newline #\Space) result)))
 
@@ -1268,8 +1263,8 @@
         (glpi-base (gethash :glpi-base-url *config*)))
     (when (and url chat-id glpi-base)
       (let* ((ticket-url (format nil "~A/front/ticket.form.php?id=~A" glpi-base ticket-id))
-            (message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Текст: ~A~%Ссылка: ~A"
-                ticket-id ticket-name ticket-content ticket-url))
+             (message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Текст: ~A~%Ссылка: ~A"
+                              ticket-id ticket-name ticket-content ticket-url))
              (payload `(("DIALOG_ID" . ,chat-id)
                         ("MESSAGE" . ,message)
                         ("SYSTEM" . "Y"))))
@@ -1277,8 +1272,7 @@
             (dex:post url
               :content (cl-json:encode-json-to-string payload)
               :headers '(("Content-Type" . "application/json; charset=utf-8")))
-          (error (e)
-            (format t "Ошибка отправки в Битрикс24: ~A~%" e)))))))
+          (error (e) (format t "Ошибка отправки в Битрикс24: ~A~%" e)))))))
 
 
 
@@ -1287,7 +1281,6 @@
   "Путь к файлу для сохранения логов вебхуков.")
 
 (defun log-webhook-request (headers json-data raw-body)
-  "Записывает информацию о запросе в лог-файл, выводя JSON в читаемом виде."
   (with-open-file (log-stream *webhook-log-file*
                               :direction :output
                               :if-exists :append
@@ -1298,9 +1291,7 @@
                                 #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
       (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
       (format log-stream "Headers: ~S~%" headers)
-      ;; Выводим распарсенные данные в читаемом виде (CLOS-объект или хеш-таблица)
-      (format log-stream "JSON Data (formatted): ~%~A~%" json-data)  ; или используйте cl-json:encode-json-to-string для красивой печати
-      ;;(format log-stream "Raw Body (ignored): ~A~%" raw-body) ; убираем raw body
+      (format log-stream "JSON Data (parsed): ~S~%" json-data)
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
@@ -1309,16 +1300,16 @@
          (parsed-data (cl-json:decode-json-from-string raw-body))
          (headers (headers-in*)))
     (log-webhook-request headers parsed-data raw-body)
-    ;; --- НОВАЯ ЧАСТЬ: отправка в Битрикс24 ---
+    ;; --- Отправка в Битрикс24 при создании новой заявки ---
     (let ((event (cdr (assoc :event parsed-data))))
       (when (string= event "new")
         (let ((item (cdr (assoc :item parsed-data))))
           (when item
             (let ((id (cdr (assoc :id item)))
-                  (name (cdr (assoc :name item))))
+                  (name (cdr (assoc :name item)))
+                  (content (cdr (assoc :content item))))
               (when (and id name)
-                (send-to-bitrix24 id name)))))))
-    ;; -----------------------------------------
+                (send-to-bitrix24 id name (if content (strip-html-tags content) ""))))))))
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
