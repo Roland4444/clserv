@@ -1301,6 +1301,22 @@
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
+(defun log-webhook-request (headers json-data raw-body path-1)
+  (with-open-file (log-stream path-1
+                              :direction :output
+                              :if-exists :append
+                              :if-does-not-exist :create)
+    (let ((timestamp (local-time:format-timestring
+                      nil (local-time:now)
+                      :format '((:year 4) #\- (:month 2) #\- (:day 2)
+                                #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
+      (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
+      (format log-stream "Headers: ~S~%" headers)
+      (format log-stream "JSON Data (parsed): ~S~%" json-data)
+      (format log-stream "--- END WEBHOOK ---~%~%"))))
+
+
+
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
@@ -1323,14 +1339,14 @@
 
 
 
-; (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
-;   (let* ((raw-body (raw-post-data :force-text t))
-;          (parsed-data (cl-json:decode-json-from-string raw-body))
-;          (headers (headers-in*)))            ; <--- заменили на headers-in*
-;     (log-webhook-request headers parsed-data raw-body)
-;     (setf (return-code*) 200
-;           (content-type*) "text/plain")
-;     "OK"))
+(define-easy-handler (glpi-webhook :uri "/ils") ()
+  (let* ((raw-body (raw-post-data :force-text t))
+         (parsed-data (cl-json:decode-json-from-string raw-body))
+         (headers (headers-in*)))            ; <--- заменили на headers-in*
+    (log-webhook-request headers parsed-data raw-body "il.log")
+    (setf (return-code*) 200
+          (content-type*) "text/plain")
+    "OK"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
