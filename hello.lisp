@@ -1339,7 +1339,7 @@
 
 
 
-(define-easy-handler (glpi-webhook :uri "/ils") ()
+(define-easy-handler (glpi-webhook-ils :uri "/ils") ()
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
          (headers (headers-in*)))            ; <--- заменили на headers-in*
