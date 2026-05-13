@@ -52,6 +52,12 @@
 
 (defparameter *default-config*
   '((:bitrix-url . "https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/tasks.task.add")
+
+ ;; НОВЫЙ ПАРАМЕТР: URL для отправки сообщений в чат
+    (:bitrix-chat-url . "https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/im.message.add")
+    ;; НОВЫЙ ПАРАМЕТР: ID чата (коллабы)
+    (:bitrix-chat-id . "chat385")
+
     (:glpi-base . "http://192.168.1.98/apirest.php")
     (:glpi-app-token . "mol6EowqT6ktBj8NLmTAvHXs6IJpDm0Pn5D9qL7c")
     (:glpi-user-token . "K4YWmdgTWl5IBVwwHK5Cq2CQ7VXwkTE1OaC71dZf")
@@ -1238,6 +1244,24 @@
       (format t "GLPI тикет создан, ID: ~A~%" ticket-id)
       ticket-id)))
 
+(defun send-bitrix24-message (ticket-id ticket-name)
+  "Отправляет сообщение о новой заявке в Битрикс24, используя параметры из конфига."
+  (let ((url (gethash :bitrix-chat-url *config*))
+        (chat-id (gethash :bitrix-chat-id *config*)))
+    (when (and url chat-id)
+      (let* ((text (format nil "🔔 Новая заявка в GLPI~%📌 ID: ~A~%📋 Тема: ~A~%🔗 Ссылка: https://romach.space/front/ticket.form.php?id=~A"
+                           ticket-id ticket-name ticket-id))
+             (payload `(("DIALOG_ID" . ,chat-id)
+                        ("MESSAGE" . ,text)
+                        ("SYSTEM" . "Y"))))
+        (handler-case
+            (dex:post url
+              :content (cl-json:encode-json-to-string payload)
+              :headers '(("Content-Type" . "application/json")))
+          (error (e)
+            (format t "Ошибка отправки в Битрикс24: ~A~%" e)))))))
+
+
 
 
 (defparameter *webhook-log-file* #P"./glip-webhook.log"
@@ -1261,15 +1285,43 @@
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
-
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
-  (let* ((raw-body (raw-post-data :force-text t))
-         (parsed-data (cl-json:decode-json-from-string raw-body))
-         (headers (headers-in*)))            ; <--- заменили на headers-in*
-    (log-webhook-request headers parsed-data raw-body)
-    (setf (return-code*) 200
-          (content-type*) "text/plain")
-    "OK"))
+  (handler-case
+      (let* ((raw-body (raw-post-data :force-text t))
+             (headers (request-headers*))
+             (json-data (cl-json:decode-json-from-string raw-body)))
+        ;; логирование
+        (log-webhook-request headers json-data raw-body)
+
+        ;; ----- НОВАЯ ЧАСТЬ -----
+        (let ((event (cdr (assoc :event json-data))))
+          (when (string= event "new")
+            (let ((item (cdr (assoc :item json-data))))
+              (when item
+                (let ((id (cdr (assoc :id item)))
+                      (name (cdr (assoc :name item))))
+                  (when (and id name)
+                    (send-bitrix24-message id name)))))))
+
+        (setf (return-code*) 200
+              (content-type*) "text/plain")
+        "OK")
+    (error (e)
+      (format t "Ошибка: ~A~%" e)
+      (setf (return-code*) 500)
+      "Internal Server Error")))
+
+
+
+
+; (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
+;   (let* ((raw-body (raw-post-data :force-text t))
+;          (parsed-data (cl-json:decode-json-from-string raw-body))
+;          (headers (headers-in*)))            ; <--- заменили на headers-in*
+;     (log-webhook-request headers parsed-data raw-body)
+;     (setf (return-code*) 200
+;           (content-type*) "text/plain")
+;     "OK"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
