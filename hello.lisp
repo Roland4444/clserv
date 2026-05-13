@@ -1407,21 +1407,31 @@
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
          (headers (headers-in*)))
-    ;; Логируем в il.log
+    ;; Логируем в файл
     (log-webhook-request-to-file headers parsed-data raw-body "il.log")
     
-    ;; Извлекаем email заявителя и отправляем системное уведомление
-    (let* ((email (extract-requester-email parsed-data))
-           (user-id (when email (get-bitrix24-user-id email))))
-      (when user-id
-        (let* ((item (cdr (assoc :item parsed-data)))
-               (ticket-id (cdr (assoc :id item)))
-               (status (cdr (assoc :status item)))
-               (status-name (if status (cdr (assoc :name status)) "изменена"))
-               (message (format nil "Заявка #~A ~A. Перейдите в ИТ Поддержку для просмотра."
-                                ticket-id status-name)))
-          (send-bitrix24-system-notify user-id message (format nil "GLPI_TICKET_~A" ticket-id)))))
+    (format t "~&=== /ils получил запрос ===~%")
+    (format t "event: ~S~%" (cdr (assoc :event parsed-data)))
     
+    ;; Извлекаем email
+    (let ((email (extract-requester-email parsed-data)))
+      (format t "Извлечён email: ~S~%" email)
+      (if email
+          (let ((user-id (get-bitrix24-user-id email)))
+            (format t "Получен USER_ID: ~S~%" user-id)
+            (if user-id
+                (let* ((item (cdr (assoc :item parsed-data)))
+                       (ticket-id (cdr (assoc :id item)))
+                       (status (cdr (assoc :status item)))
+                       (status-name (if status (cdr (assoc :name status)) "изменена"))
+                       (message (format nil "Заявка #~A ~A. Перейдите в ИТ Поддержку для просмотра."
+                                        ticket-id status-name))
+                       (tag (format nil "GLPI_TICKET_~A" ticket-id)))
+                  (format t "Отправляем уведомление: user-id=~A, message=~S, tag=~S~%" user-id message tag)
+                  (send-bitrix24-system-notify user-id message tag))
+                (format t "Не удалось получить USER_ID для email ~S~%" email)))
+          (format t "Не удалось извлечь email из данных вебхука~%")))
+
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
