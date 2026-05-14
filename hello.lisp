@@ -1365,10 +1365,11 @@
                   (format t "Статус: ~A, тело: ~A~%" status body)
                   (if (= status 200)
                       (let* ((json (cl-json:decode-json-from-string body))
-                             (result (cdr (assoc :result json)))
-                             (user (if (and (listp result) result) (car result) nil)))
-                        (when user
-                          (let ((user-id (cdr (assoc :id user))))
+                             (result (cdr (assoc :result json))))
+                        (when (and (listp result) result)
+                          (let* ((user (car result))
+                                 (user-id (cdr (assoc :ID user))))   ; <--- ключ :ID
+                            (format t "Найден USER_ID: ~S~%" user-id)
                             (when user-id
                               (setf (gethash email *user-id-cache*) user-id)
                               user-id))))
