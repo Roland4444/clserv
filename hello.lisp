@@ -1484,6 +1484,16 @@
     "OK"))
 
 
+(define-easy-handler (glpi-webhook-ils :uri "/dayan") ()
+  (let* ((raw-body (raw-post-data :force-text t))
+         (parsed-data (cl-json:decode-json-from-string raw-body))
+         (headers (headers-in*)))            ; <--- заменили на headers-in*
+    (log-webhook-request-to-file headers parsed-data raw-body "dayan.log")
+    (setf (return-code*) 200
+          (content-type*) "text/plain")
+    "OK"))
+
+
 
 
 
