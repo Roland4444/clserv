@@ -1344,30 +1344,66 @@
   "Простое URL-кодирование для латиницы, цифр, @ и точки."
   (cl-ppcre:regex-replace-all "@" str "%40"))
 
+
 (defun get-bitrix24-user-id (email)
   (or (gethash email *user-id-cache*)
-      (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
-        (when bitrix-base
+      (let ((bitrix-url (gethash :bitrix-chat-url *config*)))
+        (when bitrix-url
           (handler-case
-              (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
-                     (encoded-email (url-encode-simple email))
-                     (url (format nil "~Auser.get?FILTER[EMAIL]=~A" base-url encoded-email)))
-                (format t "Запрашиваем URL: ~A~%" url)
+              (let* ((last-slash-pos (position #\/ bitrix-url :from-end t))
+                     (base-url (if (and last-slash-pos
+                                        (= last-slash-pos (1- (length bitrix-url))))
+                                   bitrix-url
+                                   (concatenate 'string (subseq bitrix-url 0 (1+ last-slash-pos)) "/")))
+                     (url (format nil "~Auser.get?FILTER[EMAIL]=~A"
+                                  base-url
+                                  (url-encode-simple email))))
+                (format t "Базовый URL: ~A~%" base-url)
+                (format t "Полный URL: ~A~%" url)
                 (multiple-value-bind (body status)
                     (dex:get url)
                   (format t "Статус: ~A, тело: ~A~%" status body)
                   (if (= status 200)
-                      (let ((json (cl-json:decode-json-from-string body))
-                            (result (cdr (assoc :result json))))
-                        (when (and (listp result) result)
-                          (let ((user-id (cdr (assoc :id (car result)))))
+                      (let* ((json (cl-json:decode-json-from-string body))
+                             (result (cdr (assoc :result json)))
+                             (user (if (and (listp result) result) (car result) nil)))
+                        (when user
+                          (let ((user-id (cdr (assoc :id user))))
                             (when user-id
                               (setf (gethash email *user-id-cache*) user-id)
                               user-id))))
-                      (format t "Ошибка HTTP ~A~%" status))))
+                      (progn
+                        (format t "Ошибка HTTP ~A~%" status)
+                        nil))))
             (error (e)
-              (format t "Ошибка получения USER_ID: ~A~%" e)
+              (format t "Ошибка: ~A~%" e)
               nil))))))
+
+
+; (defun get-bitrix24-user-id (email)
+;   (or (gethash email *user-id-cache*)
+;       (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
+;         (when bitrix-base
+;           (handler-case
+;               (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
+;                      (encoded-email (url-encode-simple email))
+;                      (url (format nil "~Auser.get?FILTER[EMAIL]=~A" base-url encoded-email)))
+;                 (format t "Запрашиваем URL: ~A~%" url)
+;                 (multiple-value-bind (body status)
+;                     (dex:get url)
+;                   (format t "Статус: ~A, тело: ~A~%" status body)
+;                   (if (= status 200)
+;                       (let ((json (cl-json:decode-json-from-string body))
+;                             (result (cdr (assoc :result json))))
+;                         (when (and (listp result) result)
+;                           (let ((user-id (cdr (assoc :id (car result)))))
+;                             (when user-id
+;                               (setf (gethash email *user-id-cache*) user-id)
+;                               user-id))))
+;                       (format t "Ошибка HTTP ~A~%" status))))
+;             (error (e)
+;               (format t "Ошибка получения USER_ID: ~A~%" e)
+;               nil))))))
 
 (defun send-bitrix24-system-notify (user-id message &optional (tag "GLPI_TICKET"))
   "Отправляет системное уведомление (im.notify.system.add) пользователю Битрикс24."
