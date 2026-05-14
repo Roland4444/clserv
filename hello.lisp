@@ -2463,7 +2463,7 @@
     (hunchentoot:start acceptor)
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
-    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils ~%")
+    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils /dayan~%")
     acceptor))    
 
 
