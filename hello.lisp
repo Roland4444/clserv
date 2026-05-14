@@ -1484,11 +1484,43 @@
     "OK"))
 
 
+; (define-easy-handler (glpi-webhook-comm :uri "/dayan") ()
+;   (let* ((raw-body (raw-post-data :force-text t))
+;          (parsed-data (cl-json:decode-json-from-string raw-body))
+;          (headers (headers-in*)))            ; <--- заменили на headers-in*
+;     (log-webhook-request-to-file headers parsed-data raw-body "dayan.log")
+;     (setf (return-code*) 200
+;           (content-type*) "text/plain")
+;     "OK"))
+
+
 (define-easy-handler (glpi-webhook-comm :uri "/dayan") ()
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
-         (headers (headers-in*)))            ; <--- заменили на headers-in*
+         (headers (headers-in*)))
     (log-webhook-request-to-file headers parsed-data raw-body "dayan.log")
+    (let* ((parent-item (cdr (assoc :parent-item parsed-data)))
+           (email (when parent-item
+                    (let ((user-recipient (cdr (assoc :user-recipient parent-item)))
+                          (team (cdr (assoc :team parent-item))))
+                      (or (when user-recipient (cdr (assoc :name user-recipient)))
+                          (when (listp team)
+                            (loop for member in team
+                                  when (string= (cdr (assoc :role member)) "requester")
+                                    return (cdr (assoc :name member))))))))
+           (user-id (when email (get-bitrix24-user-id email)))
+           (item (cdr (assoc :item parsed-data)))
+           (comment (when item
+                      (let ((content (cdr (assoc :content item))))
+                        (if content (strip-html-tags content) ""))))
+           (ticket-id (when parent-item (cdr (assoc :id parent-item))))
+           (glpi-base (gethash :glpi-base-url *config*))
+           (ticket-url (format nil "~A/front/ticket.form.php?id=~A" glpi-base ticket-id)))
+      (when (and user-id comment ticket-id)
+        (let ((message (format nil "Комментарий к заявке #~A:~%~%\"~A\"~%~%<a href=\"~A\">Перейти к заявке</a>"
+                               ticket-id comment ticket-url))
+              (tag (format nil "GLPI_COMMENT_~A" ticket-id)))
+          (send-bitrix24-system-notify user-id message tag))))
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
