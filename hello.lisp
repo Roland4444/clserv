@@ -1418,11 +1418,13 @@
 ;               nil))))))
 
 (defun send-bitrix24-system-notify (user-id message &optional (tag "GLPI_TICKET"))
-  "Отправляет системное уведомление (im.notify.system.add) пользователю Битрикс24."
-  (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
-    (when (and bitrix-base user-id)
-      (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
-             (notify-url (format nil "~Aim.notify.system.add" base-url))
+  (let ((bitrix-url (gethash :bitrix-chat-url *config*)))
+    (when (and bitrix-url user-id)
+      (let* ((base-url (subseq bitrix-url 0 (position #\/ bitrix-url :from-end t)))
+             (base-with-slash (if (char= (char base-url (1- (length base-url))) #\/)
+                                  base-url
+                                  (concatenate 'string base-url "/")))
+             (notify-url (format nil "~Aim.notify.system.add" base-with-slash))
              (payload `(("USER_ID" . ,user-id)
                         ("MESSAGE" . ,message)
                         ("TAG" . ,tag))))
@@ -1432,7 +1434,6 @@
               :headers '(("Content-Type" . "application/json; charset=utf-8")))
           (error (e)
             (format t "Ошибка отправки системного уведомления: ~A~%" e)))))))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
