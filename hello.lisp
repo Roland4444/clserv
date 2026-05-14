@@ -22,6 +22,8 @@
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
   #:create-order-from-list   #:test-parse-items-block4  #:test-parse-items-block5
+  #:extract-user-id-from-bitrix-response    #:test-extract-user-id
+
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -851,7 +853,6 @@
         (format t "Test 3 passed: caught expected error ~A~%" e))))
   (format t "All tests passed.~%")
   t)
-
 ;;;            sbcl --load hello.lisp      --eval '(hello:test-compute-deadline)'
 (defun test-compute-deadline ()
   (let ((now (get-universal-time)))
@@ -1079,6 +1080,30 @@
               (format t "Файл прикреплён к задаче ~A~%" task-id)))
           (format t "=== SEND-TO-BITRIX END ===~%")
           task-id)))))
+
+(defun extract-user-id-from-bitrix-response (json-string)
+  (let ((pos (search "\"ID\":\"" json-string)))
+    (when pos
+      (let* ((start (+ pos 6))   ; после \"ID\":"
+             (end (position #\" json-string :start start)))
+        (when end
+          (parse-integer (subseq json-string start end)))))))
+
+
+
+
+;;;            sbcl --load hello.lisp      --eval '(hello:test-extract-user-id)'
+(defun test-extract-user-id ()
+  (let*
+      (
+       (response "{\"result\":[{\"ID\":\"336\",\"XML_ID\":\"70073210\",\"ACTIVE\":true,\"NAME\":\"Роман\",\"LAST_NAME\":\"Пастушков\",\"SECOND_NAME\":\"Евгеньевич\",\"EMAIL\":\"rpastushkov@relits.ru\",\"LAST_LOGIN\":\"2026-05-14T07:22:58+03:00\",\"DATE_REGISTER\":\"2026-01-16T03:00:00+03:00\",\"TIME_ZONE\":\"Etc\\/GMT-4\",\"IS_ONLINE\":\"Y\",\"TIMESTAMP_X\":{},\"LAST_ACTIVITY_DATE\":{},\"PERSONAL_GENDER\":\"\",\"PERSONAL_WWW\":\"\",\"PERSONAL_BIRTHDAY\":\"1990-06-20T03:00:00+04:00\",\"PERSONAL_PHOTO\":\"https:\\/\\/cdn-ru.bitrix24.ru\\/b26039220\\/main\\/c54\\/c5430e9bef88336b5bf18877ac836c48\\/f89a8a61-700e-42a9-be48-f8d113676b3d.png\",\"PERSONAL_MOBILE\":\"+79608607763\",\"PERSONAL_CITY\":\"Астрахань\",\"WORK_PHONE\":\"\",\"WORK_POSITION\":\"Специалист по информационным системам\",\"UF_EMPLOYMENT_DATE\":\"2026-01-16T03:00:00+03:00\",\"UF_DEPARTMENT\":[37,9],\"USER_TYPE\":\"employee\"}],\"total\":1,\"time\":{\"start\":1778734741,\"finish\":1778734741.855151,\"duration\":0.8551509380340576,\"processing\":0,\"date_start\":\"2026-05-14T07:59:01+03:00\",\"date_finish\":\"2026-05-14T07:59:01+03:00\",\"operating_reset_at\":1778735341,\"operating\":0}}")
+       (id (extract-user-id-from-bitrix-response response))
+       )
+    (assert (= id 336) nil "Ожидался 336, получен ~A" id)
+    (format t "✅ Тест пройден: ID = ~A~%" id)
+    )
+  )
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1350,34 +1375,20 @@
       (let ((bitrix-url (gethash :bitrix-chat-url *config*)))
         (when bitrix-url
           (handler-case
-              (let* ((last-slash-pos (position #\/ bitrix-url :from-end t))
-                     (base-url (if (and last-slash-pos
-                                        (= last-slash-pos (1- (length bitrix-url))))
-                                   bitrix-url
-                                   (concatenate 'string (subseq bitrix-url 0 (1+ last-slash-pos)) "/")))
-                     (url (format nil "~Auser.get?FILTER[EMAIL]=~A"
-                                  base-url
-                                  (url-encode-simple email))))
-                (format t "Базовый URL: ~A~%" base-url)
-                (format t "Полный URL: ~A~%" url)
+              (let* ((base-url (subseq bitrix-url 0 (position #\/ bitrix-url :from-end t)))
+                     (url (format nil "~A/user.get?FILTER[EMAIL]=~A" base-url (url-encode-simple email))))
                 (multiple-value-bind (body status)
                     (dex:get url)
-                  (format t "Статус: ~A, тело: ~A~%" status body)
                   (if (= status 200)
-                      (let* ((json (cl-json:decode-json-from-string body))
-                             (result (cdr (assoc :result json))))
-                        (when (and (listp result) result)
-                          (let* ((user (car result))
-                                 (user-id (cdr (assoc :ID user))))   ; <--- ключ :ID
-                            (format t "Найден USER_ID: ~S~%" user-id)
-                            (when user-id
-                              (setf (gethash email *user-id-cache*) user-id)
-                              user-id))))
+                      (let ((user-id (extract-user-id-from-bitrix-response body)))
+                        (when user-id
+                          (setf (gethash email *user-id-cache*) user-id)
+                          user-id))
                       (progn
                         (format t "Ошибка HTTP ~A~%" status)
                         nil))))
             (error (e)
-              (format t "Ошибка: ~A~%" e)
+              (format t "Ошибка запроса: ~A~%" e)
               nil))))))
 
 
