@@ -1484,7 +1484,7 @@
     "OK"))
 
 
-(define-easy-handler (glpi-webhook-ils :uri "/dayan") ()
+(define-easy-handler (glpi-webhook-comm :uri "/dayan") ()
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
          (headers (headers-in*)))            ; <--- заменили на headers-in*
