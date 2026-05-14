@@ -1340,24 +1340,33 @@
               (return-from extract-requester-email (cdr (assoc :name member))))))))
     nil))
 
+(defun url-encode-simple (str)
+  "Простое URL-кодирование для латиницы, цифр, @ и точки."
+  (cl-ppcre:regex-replace-all "@" str "%40"))
+
 (defun get-bitrix24-user-id (email)
   (or (gethash email *user-id-cache*)
       (let ((bitrix-base (gethash :bitrix-chat-url *config*)))
         (when bitrix-base
           (handler-case
               (let* ((base-url (subseq bitrix-base 0 (position #\/ bitrix-base :from-end t)))
-                     (url (format nil "~Auser.get" base-url))
-                     (response (dex:get url :query `(("FILTER[EMAIL]" . ,email)))))   ; <--- :params -> :query
-                (format t "Ответ от Битрикс24: ~A~%" response)
-                (let ((json (cl-json:decode-json-from-string response))
-                      (result (cdr (assoc :result json))))
-                  (when (and (listp result) result)
-                    (let ((user-id (cdr (assoc :id (car result)))))
-                      (when user-id
-                        (setf (gethash email *user-id-cache*) user-id)
-                        user-id)))))
+                     (encoded-email (url-encode-simple email))
+                     (url (format nil "~Auser.get?FILTER[EMAIL]=~A" base-url encoded-email)))
+                (format t "Запрашиваем URL: ~A~%" url)
+                (multiple-value-bind (body status)
+                    (dex:get url)
+                  (format t "Статус: ~A, тело: ~A~%" status body)
+                  (if (= status 200)
+                      (let ((json (cl-json:decode-json-from-string body))
+                            (result (cdr (assoc :result json))))
+                        (when (and (listp result) result)
+                          (let ((user-id (cdr (assoc :id (car result)))))
+                            (when user-id
+                              (setf (gethash email *user-id-cache*) user-id)
+                              user-id))))
+                      (format t "Ошибка HTTP ~A~%" status))))
             (error (e)
-              (format t "Ошибка получения USER_ID для ~A: ~A~%" email e)
+              (format t "Ошибка получения USER_ID: ~A~%" e)
               nil))))))
 
 (defun send-bitrix24-system-notify (user-id message &optional (tag "GLPI_TICKET"))
