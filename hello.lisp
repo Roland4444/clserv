@@ -2512,7 +2512,7 @@
 
 
 
-(defun start-server (&key (port 22222))
+(defun start-server (&key (port 11111))
   (let ((acceptor (make-instance 'hunchentoot:easy-acceptor 
                                  :port port
                                  :read-timeout 300
