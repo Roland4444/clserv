@@ -9,7 +9,6 @@
 (asdf:load-system :cl-ppcre)
 (asdf:load-system :yason)
 
-
 ;; Настройки Hunchentoot для поддержки больших файлов
 
 (defpackage :hello
@@ -59,7 +58,9 @@
     (:bitrix-chat-url . "https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/im.message.add")
     ;; НОВЫЙ ПАРАМЕТР: ID чата (коллабы)
     (:bitrix-chat-id . "chat385")
-
+    (:glpi-db-socket . "/var/run/mysqld/mysqld.sock")   ; путь к сокету MySQL
+    (:glpi-db-user . "root")                            ; системный пользователь (совпадает с ОС)
+    (:glpi-db-database . "glpi")                        ; имя базы данных GLPI
     (:glpi-base . "http://192.168.1.98/apirest.php")
     (:glpi-app-token . "mol6EowqT6ktBj8NLmTAvHXs6IJpDm0Pn5D9qL7c")
     (:glpi-user-token . "K4YWmdgTWl5IBVwwHK5Cq2CQ7VXwkTE1OaC71dZf")
@@ -1104,6 +1105,61 @@
     )
   )
 
+(defun get-bitrix24-user-name (email)
+  "Возвращает два значения: FIRSTNAME и LASTNAME из Битрикс24 по email."
+  (let ((bitrix-url (gethash :bitrix-chat-url *config*)))
+    (when bitrix-url
+      (let* ((base-url (subseq bitrix-url 0 (position #\/ bitrix-url :from-end t)))
+             (url (format nil "~A/user.get?FILTER[EMAIL]=~A" base-url (url-encode-simple email))))
+        (multiple-value-bind (body status)
+            (dex:get url)
+          (if (= status 200)
+              (let* ((json (cl-json:decode-json-from-string body))
+                     (result (cdr (assoc :result json))))
+                (when (and (listp result) result)
+                  (let ((user (car result)))
+                    ;; Ключи в ассоциативном списке имеют вид :+NAME+ и :+LAST-NAME+
+                    (values (cdr (assoc ':+NAME+ user))
+                            (cdr (assoc ':+LAST-NAME+ user))))))
+              (values nil nil)))))))
+
+
+(define-easy-handler (get-user-from-bitrix :uri "/get_user") ()
+  (let* ((email-from-get (parameter "email"))
+         (email-from-post (let ((raw (raw-post-data :force-text t)))
+                            (when (and raw (not (string= raw "")))
+                              (handler-case 
+                                  (let ((json (cl-json:decode-json-from-string raw)))
+                                    (cdr (assoc :email json)))
+                                (error () nil)))))
+         (email (or email-from-get email-from-post)))
+    (if (null email)
+        (progn
+          (setf (return-code*) 400
+                (content-type*) "application/json")
+          (cl-json:encode-json-to-string `((:error . "Missing 'email' parameter"))))
+        (handler-case
+            (multiple-value-bind (firstname lastname)
+                (get-bitrix24-user-name email)
+              (if (and firstname lastname)
+                  (progn
+                    (setf (return-code*) 200
+                          (content-type*) "application/json")
+                    (cl-json:encode-json-to-string
+                     `((:email . ,email)
+                       (:firstname . ,firstname)
+                       (:lastname . ,lastname))))
+                  (progn
+                    (setf (return-code*) 404
+                          (content-type*) "application/json")
+                    (cl-json:encode-json-to-string
+                     `((:error . "User not found in Bitrix24"))))))
+          (error (e)
+            (setf (return-code*) 500
+                  (content-type*) "application/json")
+            (cl-json:encode-json-to-string
+             `((:error . ,(format nil "Bitrix24 API error: ~A" e)))))))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1435,6 +1491,7 @@
               :headers '(("Content-Type" . "application/json; charset=utf-8")))
           (error (e)
             (format t "Ошибка отправки системного уведомления: ~A~%" e)))))))
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2455,7 +2512,7 @@
 
 
 
-(defun start-server (&key (port 11111))
+(defun start-server (&key (port 22222))
   (let ((acceptor (make-instance 'hunchentoot:easy-acceptor 
                                  :port port
                                  :read-timeout 300
@@ -2474,34 +2531,17 @@
 
 
 (defun main ()
-  ;; Загружаем конфигурацию (если файла нет, создаётся с настройками по умолчанию)
   (load-config)
 (setf hunchentoot:*session-max-time* (* 60 60 24)) ; 24 часа
 (setf hunchentoot:*session-gc-frequency* 60)
-  ;; Запускаем фоновый поток для обработки заявок
-; (bt:make-thread
-;   (lambda ()
-;     (loop
-;       (sleep 10)
-;       (handler-case
-;           (when (gethash :processing-enabled *config*)
-;             (scan-requests))
-;         (error (e)
-;           (format t "~%!!! Критическая ошибка в потоке обработки: ~A. Поток продолжает работу.~%" e)
-;           (log-error-to-file e)
-;           (finish-output nil)))))
-;   :name "request-processor")
-;   (bt:make-thread
-;     (lambda ()
-;       (loop
-;         (sleep 10)   ; интервал сканирования
-;         (when (gethash :processing-enabled *config*)
-;           (scan-requests))))
-;     :name "request-processor")
-  
-  ;; Запуск сервера
+
   (start-server)
   (loop (sleep 3600)))
+
+
+
+
+
 ;;; Запуск теста
 ;;; (test-plus)
   ;;   sbcl --load hello.lisp      --eval '(sb-ext:save-lisp-and-die "hello-server" :toplevel #'\''hello::main :executable t)'
