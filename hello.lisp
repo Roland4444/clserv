@@ -394,6 +394,7 @@
 ;;; Обработчик для создания заказа на основе текстовой заявки
 ;;; Обработчик для создания заказа
 
+
 ; (hunchentoot:define-easy-handler (reqprc :uri "/reqprc") (input author quotes_author uuid collab source_acc)
 ;   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
 ;   (let ((input-val (or input (hunchentoot:post-parameter "input")))
@@ -406,11 +407,19 @@
 ;         (project-id 6))
 ;     (if (and input-val author-val quotes-author-val uuid-val collab-val)
 ;         (handler-case
-;             (let ((cr (create-order source-account-id project-id input-val)))
-;               (log-order-request input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
-;               (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A, collab=~A, source_acc=~A~%"
-;                       input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
-;               (cl-json:encode-json-to-string `((:status . "ok") (:order-response . ,cr))))
+;             (let ((list-items (parse-items-block input-val)))
+;               (if (null list-items)
+;                   (progn
+;                     (setf (hunchentoot:return-code*) 400)
+;                     (cl-json:encode-json-to-string '((:error . "No valid items parsed from input"))))
+;                 (let ((cr (create-order-from-list list-items t
+;                                                   :source-account-id source-account-id
+;                                                   :project-id project-id)))
+;                   (log-order-request input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+;                   (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%, source_acc-val=~A~%"
+;                           input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+;                   (format t "Parsed items: ~S~%" list-items)
+;                   (cl-json:encode-json-to-string `((:status . "ok") (:order-response . ,cr))))))
 ;           (error (e)
 ;             (setf (hunchentoot:return-code*) 500)
 ;             (cl-json:encode-json-to-string `((:error . ,(format nil "~A" e))))))
@@ -438,9 +447,11 @@
                     (cl-json:encode-json-to-string '((:error . "No valid items parsed from input"))))
                 (let ((cr (create-order-from-list list-items t
                                                   :source-account-id source-account-id
-                                                  :project-id project-id)))
+                                                  :project-id project-id
+                                                  :comment input-val
+                                                  :delivery-address "г. Астрахань, ул. Краснодарская")))   ; <-- весь исходный текст как комментарий
                   (log-order-request input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
-                  (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%, source_acc-val=~A~%"
+                  (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A, collab=~A, source_acc=~A~%"
                           input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
                   (format t "Parsed items: ~S~%" list-items)
                   (cl-json:encode-json-to-string `((:status . "ok") (:order-response . ,cr))))))
@@ -451,6 +462,8 @@
           (setf (hunchentoot:return-code*) 400)
           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
 
+
+
 ; (hunchentoot:define-easy-handler (reqprc :uri "/reqprc") (input author quotes_author uuid collab source_acc)
 ;   (setf (hunchentoot:content-type*) "application/json; charset=utf-8")
 ;   (let ((input-val (or input (hunchentoot:post-parameter "input")))
@@ -458,20 +471,27 @@
 ;         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
 ;         (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
 ;         (collab-val (or collab (hunchentoot:post-parameter "collab")))
-;         (source_acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
-;         (source-account-id (7))
-;         (project-id (6))
-;         )
-;         (let ((list-items (parse-items-block input-val))
-;               (cr         (create-order source-account-id project-id input-val)))   ;; 7
-;              (format t "~%Parsed items: ~S~%" list-items)            
-;         ) 
-;         (if (and input-val author-val quotes-author-val uuid-val collab-val)
-;         (progn
-;           (log-order-request input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
-;           (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A~%, collab=~A~%, source_acc-val=~A~%"
-;                   input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
-;           (cl-json:encode-json-to-string '((:status . "ok") (:message . "Data received"))))
+;         (source-acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
+;         (source-account-id 7)
+;         (project-id 6))
+;     (if (and input-val author-val quotes-author-val uuid-val collab-val)
+;         (handler-case
+;             (let ((list-items (parse-items-block input-val)))
+;               (if (null list-items)
+;                   (progn
+;                     (setf (hunchentoot:return-code*) 400)
+;                     (cl-json:encode-json-to-string '((:error . "No valid items parsed from input"))))
+;                 (let ((cr (create-order-from-list list-items t
+;                                                   :source-account-id source-account-id
+;                                                   :project-id project-id)))
+;                   (log-order-request input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+;                   (format t "Received: input=~A, author=~A, quotes_author=~A, uuid=~A, collab=~A, source_acc=~A~%"
+;                           input-val author-val quotes-author-val uuid-val collab-val source-acc-val)
+;                   (format t "Parsed items: ~S~%" list-items)
+;                   (cl-json:encode-json-to-string `((:status . "ok") (:order-response . ,cr))))))
+;           (error (e)
+;             (setf (hunchentoot:return-code*) 500)
+;             (cl-json:encode-json-to-string `((:error . ,(format nil "~A" e))))))
 ;         (progn
 ;           (setf (hunchentoot:return-code*) 400)
 ;           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
@@ -1748,6 +1768,56 @@
           (error "HTTP request failed with status ~A, body: ~A" status body)))))
 
 ;;;;        sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)) t)'
+; (defun create-order-from-list (items-list reload-config
+;                                &key (name "Заказ через API")
+;                                     (project-id 6)
+;                                     (finish-date "2026-06-10")
+;                                     (source-account-id 34)
+;                                     (consignee-id 2)
+;                                     (region-id 30)
+;                                     (responsible-id 222)
+;                                     (delay 35)
+;                                     (external-id 1744320000)
+;                                     (good-position-external-id "000000004100008693"))
+;   (when reload-config
+;     (load-config))  
+;   (unless items-list
+;     (error "Список позиций не может быть пустым"))
+;   (let* ( (order-name (multiple-value-bind (second minute hour day month year)
+;                                            (get-decoded-time)
+;                                            (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"year month day hour minute second)))    
+;     (order-items
+;            (loop for (name quantity code) in items-list
+;                  collect `(("goodName" . ,name)
+;                            ("count" . ,quantity)
+;                            ("unit" . (("id" . ,code)))
+;                            ("analogAllow" . nil)
+;                            ("innerComment" . "")
+;                            ("goodPosition" . (("externalId" . ,good-position-external-id))))))
+;          (payload `(("name" . ,order-name)
+;                     ("project" . (("id" . ,project-id)))
+;                     ("state" . "DRAFT")
+;                     ("finishDate" . ,finish-date)
+;                     ("sourceAccount" . (("id" . ,source-account-id)))
+;                     ("consignee" . (("id" . ,consignee-id)))
+;                     ("region" . (("id" . ,region-id)))
+;                     ("responsible" . (("id" . ,responsible-id)))
+;                     ("delay" . ,delay)
+;                     ("externalId" . ,external-id)
+;                     ("orderItems" . ,order-items)))
+;          (token (gethash :zakupay-token *config*))
+;          (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+;          (headers `(("accept" . "application/json")
+;                     ("ZakupayToken" . ,token)
+;                     ("Content-Type" . "application/json")))
+;          (json-string (cl-json:encode-json-to-string payload)))
+;     (unless token
+;       (error "Token :zakupay-token not found in config"))
+;     (multiple-value-bind (body status)
+;         (dex:post url :headers headers :content json-string)
+;       (if (= status 200)
+;           body
+;           (error "HTTP request failed with status ~A, body: ~A" status body)))))
 (defun create-order-from-list (items-list reload-config
                                &key (name "Заказ через API")
                                     (project-id 6)
@@ -1758,18 +1828,19 @@
                                     (responsible-id 222)
                                     (delay 35)
                                     (external-id 1744320000)
-                                    (good-position-external-id "000000004100008693"))
+                                    (good-position-external-id "000000004100008693")
+                                    (comment "Только самые качественные материалы")
+                                    (is-delivery-need t)
+                                    (delivery-address "ул. Благовещенская, д. 12"))
   (when reload-config
     (load-config))  
   (unless items-list
     (error "Список позиций не может быть пустым"))
-  (let* ( (order-name (multiple-value-bind (second minute hour day month year)
-                                           (get-decoded-time)
-                                           (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"year month day hour minute second)))
-    
-    
-    
-    (order-items
+  (let* ((order-name (multiple-value-bind (second minute hour day month year)
+                         (get-decoded-time)
+                       (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"
+                               year month day hour minute second)))
+         (order-items
            (loop for (name quantity code) in items-list
                  collect `(("goodName" . ,name)
                            ("count" . ,quantity)
@@ -1787,7 +1858,10 @@
                     ("responsible" . (("id" . ,responsible-id)))
                     ("delay" . ,delay)
                     ("externalId" . ,external-id)
-                    ("orderItems" . ,order-items)))
+                    ("orderItems" . ,order-items)
+                    ("comment" . ,comment)
+                    ("isDeliveryNeed" . ,is-delivery-need)
+                    ("deliveryAddress" . ,delivery-address)))
          (token (gethash :zakupay-token *config*))
          (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
          (headers `(("accept" . "application/json")
@@ -1801,7 +1875,6 @@
       (if (= status 200)
           body
           (error "HTTP request failed with status ~A, body: ~A" status body)))))
-
 
 
 
