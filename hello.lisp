@@ -22,7 +22,7 @@
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
   #:create-order-from-list   #:test-parse-items-block4  #:test-parse-items-block5
   #:extract-user-id-from-bitrix-response    #:test-extract-user-id    #:test-get-bitrix24-user-name-by-id-438
-
+  #:send-bitrix24-system-notify
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1558,7 +1558,7 @@
 ;             (error (e)
 ;               (format t "Ошибка получения USER_ID: ~A~%" e)
 ;               nil))))))
-
+;;              (hello:send-bitrix24-system-notify 292 "Люда смени пароль от учетки СБИС")
 (defun send-bitrix24-system-notify (user-id message &optional (tag "GLPI_TICKET"))
   (let ((bitrix-url (gethash :bitrix-chat-url *config*)))
     (when (and bitrix-url user-id)
