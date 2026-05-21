@@ -21,7 +21,7 @@
   #:cr-order  #:test-extract-items #:test-unit-to-code   #:test-parse-item-line   #:test-parse-items-block  #:test-parse-items-block2 
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
   #:create-order-from-list   #:test-parse-items-block4  #:test-parse-items-block5
-  #:extract-user-id-from-bitrix-response    #:test-extract-user-id
+  #:extract-user-id-from-bitrix-response    #:test-extract-user-id    #:test-get-bitrix24-user-name-by-id-438
 
   ))
 (in-package :hello)
@@ -1179,6 +1179,72 @@
                   (content-type*) "application/json")
             (cl-json:encode-json-to-string
              `((:error . ,(format nil "Bitrix24 API error: ~A" e)))))))))
+
+
+(defun get-bitrix24-user-name-by-id (user-id)
+  "Возвращает два значения: FIRSTNAME и LASTNAME из Битрикс24 по ID пользователя."
+  (let ((bitrix-url (gethash :bitrix-chat-url *config*)))
+    (when bitrix-url
+      (let* ((base-url (subseq bitrix-url 0 (position #\/ bitrix-url :from-end t)))
+             (url (format nil "~A/user.get?FILTER[ID]=~A" base-url user-id)))
+        (multiple-value-bind (body status)
+            (dex:get url)
+          (if (= status 200)
+              (let* ((json (cl-json:decode-json-from-string body))
+                     (result (cdr (assoc :result json))))
+                (when (and (listp result) result)
+                  (let ((user (car result)))
+                    (values (cdr (assoc ':+NAME+ user))
+                            (cdr (assoc ':+LAST-NAME+ user))))))
+              (values nil nil)))))))
+
+(define-easy-handler (get-user-by-id-from-bitrix :uri "/get_user_by_id") ()
+  (let* ((id-from-get (parameter "id"))
+         (id-from-post (let ((raw (raw-post-data :force-text t)))
+                         (when (and raw (not (string= raw "")))
+                           (handler-case 
+                               (let ((json (cl-json:decode-json-from-string raw)))
+                                 (cdr (assoc :id json)))
+                             (error () nil)))))
+         (id (or id-from-get id-from-post)))
+    (if (null id)
+        (progn
+          (setf (return-code*) 400
+                (content-type*) "application/json")
+          (cl-json:encode-json-to-string `((:error . "Missing 'id' parameter"))))
+        (handler-case
+            (multiple-value-bind (firstname lastname)
+                (get-bitrix24-user-name-by-id id)
+              (if (and firstname lastname)
+                  (progn
+                    (setf (return-code*) 200
+                          (content-type*) "application/json")
+                    (cl-json:encode-json-to-string
+                     `((:id . ,id)
+                       (:firstname . ,firstname)
+                       (:lastname . ,lastname))))
+                  (progn
+                    (setf (return-code*) 404
+                          (content-type*) "application/json")
+                    (cl-json:encode-json-to-string
+                     `((:error . "User not found in Bitrix24"))))))
+          (error (e)
+            (setf (return-code*) 500
+                  (content-type*) "application/json")
+            (cl-json:encode-json-to-string
+             `((:error . ,(format nil "Bitrix24 API error: ~A" e)))))))))
+
+
+;;;;    sbcl --load hello.lisp --eval '(hello:test-get-bitrix24-user-name-by-id-438)'
+(defun test-get-bitrix24-user-name-by-id-438 ()
+  (load-config)
+  (multiple-value-bind (firstname lastname)
+      (get-bitrix24-user-name-by-id 438)
+    (assert (string= firstname "Кристина") (firstname)
+            "Ожидалось имя 'Кристина', получено ~A" firstname)
+    (assert (string= lastname "Попова") (lastname)
+            "Ожидалась фамилия 'Попова', получено ~A" lastname)
+    (format t "✅ Тест пройден: ID 438 -> ~A ~A~%" firstname lastname)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2656,7 +2722,3 @@
 
 
 
-
-;;            jcr827al4vam999918922f10rr6ovpprbk6lneornnkhbjmbitl6
-;;            f97136657nsdjg20f650q92ieq1ueei7nnhmjku07qessa772ium
-;;            4eu92qp4vquikinkjqnqc7bifivtqd23652msghr1vfhfa8bi1cl
