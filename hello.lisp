@@ -650,22 +650,22 @@
         }
         (function() {
             if (window.self === window.top) {
-                redirectToGLPI('jopa');
+                redirectToGLPI('undefined');
             } else if (typeof BX24 === 'undefined') {
-                redirectToGLPI('jopa');
+                redirectToGLPI('undefined');
             } else {
-                var timeout = setTimeout(function() { redirectToGLPI('jopa'); }, 3000);
+                var timeout = setTimeout(function() { redirectToGLPI('undefined'); }, 3000);
                 BX24.init(function() {
                     clearTimeout(timeout);
                     BX24.installFinish();
                     BX24.callMethod('user.current', {}, function(result) {
                         if (result.error()) {
-                            redirectToGLPI('jopa');
+                            redirectToGLPI('undefined');
                             return;
                         }
                         var user = result.data();
                         var login = user.EMAIL || user.PERSONAL_PHONE || user.PHONE || user.LOGIN || user.ID;
-                        redirectToGLPI(login || 'jopa');
+                        redirectToGLPI(login || 'undefined');
                     });
                 });
             }
