@@ -1496,20 +1496,7 @@
                                 #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
       (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
       (format log-stream "Headers: ~S~%" headers)
-      ;; Безопасная печать json-data (перехватываем ошибку кодировки)
-      (handler-case
-          (format log-stream "JSON Data (parsed): ~S~%" json-data)
-        (error (e)
-          (format log-stream "JSON Data (parsed): [ERROR printing: ~A]~%" e)
-          ;; Альтернатива: записать raw-body (исходную строку) с заменой проблемных символов
-          (format log-stream "Raw body (safe): ~A~%"
-                  (substitute #\? #\Rubout
-                   (string (map 'list
-                                (lambda (c)
-                                  (if (or (char<= c #\Space) (char= c #\Rubout))
-                                      #\?
-                                      c))
-                                raw-body))))))
+      (format log-stream "Raw body: ~A~%" raw-body)   ; <-- вместо json-data
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
