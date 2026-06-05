@@ -1468,19 +1468,48 @@
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
+; (defun log-webhook-request-to-file (headers json-data raw-body path-1)
+;   (with-open-file (log-stream path-1
+;                               :direction :output
+;                               :if-exists :append
+;                               :if-does-not-exist :create
+;                               :external-format :utf-8)   ;; <-- ключевое изменение
+;     (let ((timestamp (local-time:format-timestring
+;                       nil (local-time:now)
+;                       :format '((:year 4) #\- (:month 2) #\- (:day 2)
+;                                 #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
+;       (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
+;       (format log-stream "Headers: ~S~%" headers)
+;       (format log-stream "JSON Data (parsed): ~S~%" json-data)
+;       (format log-stream "--- END WEBHOOK ---~%~%"))))
+
+
 (defun log-webhook-request-to-file (headers json-data raw-body path-1)
   (with-open-file (log-stream path-1
                               :direction :output
                               :if-exists :append
                               :if-does-not-exist :create
-                              :external-format :utf-8)   ;; <-- ключевое изменение
+                              :external-format :utf-8)
     (let ((timestamp (local-time:format-timestring
                       nil (local-time:now)
                       :format '((:year 4) #\- (:month 2) #\- (:day 2)
                                 #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
       (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
       (format log-stream "Headers: ~S~%" headers)
-      (format log-stream "JSON Data (parsed): ~S~%" json-data)
+      ;; Безопасная печать json-data (перехватываем ошибку кодировки)
+      (handler-case
+          (format log-stream "JSON Data (parsed): ~S~%" json-data)
+        (error (e)
+          (format log-stream "JSON Data (parsed): [ERROR printing: ~A]~%" e)
+          ;; Альтернатива: записать raw-body (исходную строку) с заменой проблемных символов
+          (format log-stream "Raw body (safe): ~A~%"
+                  (substitute #\? #\Rubout
+                   (string (map 'list
+                                (lambda (c)
+                                  (if (or (char<= c #\Space) (char= c #\Rubout))
+                                      #\?
+                                      c))
+                                raw-body))))))
       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
