@@ -1472,7 +1472,8 @@
   (with-open-file (log-stream path-1
                               :direction :output
                               :if-exists :append
-                              :if-does-not-exist :create)
+                              :if-does-not-exist :create
+                              :external-format :utf-8)   ;; <-- ключевое изменение
     (let ((timestamp (local-time:format-timestring
                       nil (local-time:now)
                       :format '((:year 4) #\- (:month 2) #\- (:day 2)
