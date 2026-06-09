@@ -364,8 +364,7 @@
         (quotes-author-val (or quotes_author (hunchentoot:post-parameter "quotes_author")))
         (uuid-val (or uuid (hunchentoot:post-parameter "uuid")))
         (collab-val (or collab (hunchentoot:post-parameter "collab")))
-        (source_acc-val (or source_acc (hunchentoot:post-parameter "source_acc")))
-        )
+        (source_acc-val (or source_acc (hunchentoot:post-parameter "source_acc"))))
     (if (and input-val author-val quotes-author-val uuid-val collab-val)
         (progn
           (log-request-to-file input-val author-val quotes-author-val uuid-val collab-val source_acc-val)
@@ -2121,7 +2120,11 @@
             when result do (push result items)))
     (nreverse items)))
 
-(defun parse-item-line (line)
+
+
+
+
+(defun parse-item-line-bak3 (line)
   ;; Удаляем начальный номер в формате "1)" или "1." (с возможным пробелом после)
   (let ((trimmed line)
         (num-end-pos (position-if (lambda (c) (or (char= c #\)) (char= c #\.))) line)))
@@ -2142,7 +2145,7 @@
                (unit-str (string-trim " " (subseq rest num-end)))
                (quantity (read-from-string (substitute #\. #\, quantity-str)))
                (code (unit-to-code unit-str)))
-          (list name quantity code))))))
+          (list name quantity code)))))
 
 (defun parse-item-line-bak2 (line)
   ;; Удаляем начальный номер в формате "1) " или "1) " (с пробелом)
@@ -2192,7 +2195,7 @@
                    (quantity (read-from-string quantity-str))
                    (code (unit-to-code unit-str)))
               (unless code (return-from parse-item-line nil))
-              (list name quantity code))))))))
+              (list name quantity code)))))))
 
 
 
@@ -2305,7 +2308,9 @@
       ((member normalized '("м.п" "п.м" "пог.м" "мп") :test #'string-equal) 3)
       ((member normalized '("л" "литр" "литра") :test #'string-equal) 4)
       ((member normalized '("кг" "килограмм" "килограмма") :test #'string-equal) 5)
-      ((member normalized '("м2" "кв.м" "квадратный метр") :test #'string-equal) 6)
+      ((or (member normalized '("м2" "м²" "кв.м" "квадратный метр") :test #'string-equal)
+           (string-equal normalized "м2")
+           (string-equal normalized "м²")) 6)
       ((member normalized '("м3" "куб.м" "кубический метр") :test #'string-equal) 7)
       (t (warn "Неизвестная единица измерения: ~A, используем 1 (шт)" unit-str) 1))))
 
