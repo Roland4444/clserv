@@ -2945,6 +2945,16 @@
 ;;;;        sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)) t)'
 
 
+
+
+;;;;      workes -> ;;;;    sbcl --load hello.lisp --eval '(hello:create-order-from-list (list (list "Доска 25х100" 20 1) (list "Саморезы 3,5x51" 1000 1) (list "Гвозди 100 мм." 10 5)) t)'
+
+
+
+
+
+
+
 ;;      sbcl --load hello.lisp      --eval '(hello:get-offers)'
 ;; (:GLPI-BASE-URL . "https://glpi.upshepard.ru") 
 
