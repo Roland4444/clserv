@@ -1907,6 +1907,81 @@
 (defun create-order-from-list (items-list reload-config
                                &key (name "Заказ через API")
                                     (project-id 6)
+                                    (finish-date nil)   ; теперь nil, вычисляем автоматически
+                                    (source-account-id 34)
+                                    (consignee-id 2)
+                                    (region-id 30)
+                                    (responsible-id 222)
+                                    (delay 35)
+                                    (external-id 1744320000)
+                                    (good-position-external-id "000000004100008693")
+                                    (comment "Только самые качественные материалы")
+                                    (is-delivery-need t)
+                                    (delivery-address "ул. Благовещенская, д. 12")
+                                    (order-additional-data `(("Cont" . "Комментарий для передачи в 1С"))))
+  (when reload-config
+    (load-config))  
+  (unless items-list
+    (error "Список позиций не может быть пустым"))
+  (let* ((order-name (multiple-value-bind (second minute hour day month year)
+                         (get-decoded-time)
+                       (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"
+                               year month day hour minute second)))
+         ;; Вычисляем finish-date, если не передан явно (текущая дата + 1 месяц)
+         (finish-date-str (if finish-date
+                              finish-date
+                              (multiple-value-bind (sec min hour day month year)
+                                  (get-decoded-time)
+                                (declare (ignore sec min hour))
+                                (multiple-value-bind (y m d)
+                                    (add-months year month day 1)
+                                  (format nil "~4D-~2,'0D-~2,'0D" y m d)))))
+         (order-items
+           (loop for (name quantity code) in items-list
+                 collect `(("goodName" . ,name)
+                           ("count" . ,quantity)
+                           ("unit" . (("id" . ,code)))
+                           ("analogAllow" . nil)
+                           ("innerComment" . "")
+                           ("goodPosition" . (("externalId" . ,good-position-external-id)))
+                           ("additionalDataJson" . (("productCol1" . ,name))))))
+         (payload `(("name" . ,order-name)
+                    ("project" . (("id" . ,project-id)))
+                    ("state" . "DRAFT")
+                    ("finishDate" . ,finish-date-str)
+                    ("sourceAccount" . (("id" . ,source-account-id)))
+                    ("consignee" . (("id" . ,consignee-id)))
+                    ("region" . (("id" . ,region-id)))
+                    ("responsible" . (("id" . ,responsible-id)))
+                    ("delay" . ,delay)
+                    ("externalId" . ,external-id)
+                    ("orderItems" . ,order-items)
+                    ("comment" . ,comment)
+                    ("isDeliveryNeed" . ,is-delivery-need)
+                    ("deliveryAddress" . ,delivery-address)
+                    ("additionalDataJson" . ,order-additional-data)))
+         (token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json")))
+         (json-string (cl-json:encode-json-to-string payload)))
+    (unless token
+      (error "Token :zakupay-token not found in config"))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content json-string)
+      (if (= status 200)
+          body
+          (error "HTTP request failed with status ~A, body: ~A" status body)))))
+
+
+
+
+
+
+(defun create-order-from-list-bak2 (items-list reload-config
+                               &key (name "Заказ через API")
+                                    (project-id 6)
                                     (finish-date "2026-06-10")
                                     (source-account-id 34)
                                     (consignee-id 2)
