@@ -2103,37 +2103,65 @@
 ;           (error "HTTP request failed with status ~A, body: ~A" status body)))))
 
 
+(defun leap-year-p (year)
+  "Возвращает T, если год високосный."
+  (or (zerop (mod year 400))
+      (and (zerop (mod year 4))
+           (not (zerop (mod year 100))))))
+
+(defun days-in-month (year month)
+  "Возвращает количество дней в месяце для заданного года."
+  (case month
+    (1 31) (2 (if (leap-year-p year) 29 28))
+    (3 31) (4 30) (5 31) (6 30)
+    (7 31) (8 31) (9 30) (10 31) (11 30) (12 31)))
+
+(defun add-months (year month day months)
+  "Прибавляет заданное количество месяцев к дате.
+   Возвращает три значения: год, месяц, день (с корректировкой, если день выходит за пределы месяца)."
+  (let* ((m (+ month months))
+         (y (+ year (floor (1- m) 12)))
+         (m (1+ (mod (1- m) 12))))
+    ;; Корректируем день, если он больше, чем дней в месяце
+    (let ((max-day (days-in-month y m)))
+      (when (> day max-day)
+        (setf day max-day)))
+    (values y m day)))
 
 
 
-
-(defun create-order ()
+(defun create-order-direct ()
   (let* ((token (gethash :zakupay-token *config*))
          (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
          (headers `(("accept" . "application/json")
                     ("ZakupayToken" . ,token)
                     ("Content-Type" . "application/json")))
+         ;; Вычисляем finish-date: текущая дата + 1 месяц
+         (finish-date-str
+           (multiple-value-bind (sec min hour day month year)
+               (get-decoded-time)
+             (declare (ignore sec min hour))
+             (multiple-value-bind (y m d)
+                 (add-months year month day 1)
+               (format nil "~4D-~2,'0D-~2,'0D" y m d))))
          (payload (list (cons "name" "Тестовый заказ CL")
-                        (cons "project" (list (cons "id" 6)))   ;;  (cons "project" (list (cons "id" 12)))   ПРОЕКТ  :: Ответственные кто имее  право создавать заявки
+                        (cons "project" (list (cons "id" 6)))
                         (cons "state" "DRAFT")
-                        (cons "finishDate" "2026-06-10")
-             
-                        (cons "sourceAccount" (list (cons "id"  7)))   ;;; 7)))            ;;; 34)))     <===Выгрузка банковских счетов плательщиков.xlsx
-                        (cons "consignee" (list (cons "id" 2)))     ; ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "СПЕЦИАЛИЗИРОВАННЫЙ ЗАСТРОЙЩИК "РЭС-ТЕТРИС" #2           Грузополучатель
+                        (cons "finishDate" finish-date-str)   ; динамическая дата
+                        (cons "sourceAccount" (list (cons "id" 7)))
+                        (cons "consignee" (list (cons "id" 2)))
                         (cons "region" (list (cons "id" 30)))
-                        (cons "responsible" (list (cons "id" 222)))   ; исполнитель
-                        (cons "delay" 35)   ;; ООО "ЮЖНЫЙ КАБЕЛЬНЫЙ ЦЕНТР"   - 30;   
+                        (cons "responsible" (list (cons "id" 222)))
+                        (cons "delay" 35)
                         (cons "externalId" 1744320000)
                         (cons "orderItems"
                               (list (list (cons "goodName" "Тестовый товар")
                                           (cons "count" 1)
-                                          (cons "unit" (list (cons "id" 6)))   ;; 1 - шт, 2 - м,  3 - м .п. 4 - литр, 5 =- кг, 6 квадратный метр,  7 - кубический метр, 
-                                          ; (cons "budgetItem" (list (cons "id" 10)))
-                                          ; (cons "costItem" (list (cons "id" 93)))
+                                          (cons "unit" (list (cons "id" 6)))
                                           (cons "analogAllow" nil)
                                           (cons "innerComment" "Тест")
                                           (cons "goodPosition" (list (cons "externalId" "000000004100008693"))))
-                                          (list (cons "goodName" "Crude Oil Cad")
+                                    (list (cons "goodName" "Crude Oil Cad")
                                           (cons "count" 1)
                                           (cons "unit" (list (cons "id" 1)))
                                           (cons "analogAllow" nil)
@@ -2146,7 +2174,53 @@
           (error "HTTP request failed with status ~A, body: ~A" status body)))))
 
 
+
+
+
 (defun create-order (source-account-id project-id items-text)
+  "Создаёт заказ через API.
+   source-account-id: ID счёта плательщика
+   project-id: ID проекта
+   items-text: многострочный текст для генерации позиций заказа"
+  (let* ((token (gethash :zakupay-token *config*))
+         (url "https://restetris.cynteka.ru/api/v1/orders?format=json&isoDate=true")
+         (headers `(("accept" . "application/json")
+                    ("ZakupayToken" . ,token)
+                    ("Content-Type" . "application/json")))
+         (items-list (parse-items-block items-text))
+         ;; Получаем текущее время и формируем имя заказа
+         (order-name
+           (multiple-value-bind (second minute hour day month year)
+               (get-decoded-time)
+             (format nil "ОКЛАНД ~4D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"
+                     year month day hour minute second)))
+         ;; Вычисляем finish-date как текущая дата + 1 месяц
+         (finish-date-str
+           (multiple-value-bind (sec min hour day month year)
+               (get-decoded-time)
+             (declare (ignore sec min hour))
+             (multiple-value-bind (y m d)
+                 (add-months year month day 1)
+               (format nil "~4D-~2,'0D-~2,'0D" y m d))))
+         (payload `(("name" . ,order-name)
+                    ("project" . (("id" . ,project-id)))
+                    ("state" . "DRAFT")
+                    ("finishDate" . ,finish-date-str)
+                    ("sourceAccount" . (("id" . ,source-account-id)))
+                    ("consignee" . (("id" . 2)))
+                    ("region" . (("id" . 30)))
+                    ("responsible" . (("id" . 222)))
+                    ("delay" . 35)
+                    ("externalId" . ,(get-universal-time))   ; уникальный числовой ID
+                    ("orderItems" . ,items-list))))
+    (multiple-value-bind (body status)
+        (dex:post url :headers headers :content (cl-json:encode-json-to-string payload))
+      (if (= status 200)
+          (cl-json:decode-json-from-string body)
+          (error "HTTP request failed with status ~A, body: ~A" status body)))))
+
+
+(defun create-order-bak (source-account-id project-id items-text)
   "Создаёт заказ через API.
    source-account-id: ID счёта плательщика
    project-id: ID проекта
@@ -2825,7 +2899,7 @@
 
 (defun cr-order()
 (load-config)
-(create-order)
+(create-order-direct)
 )
 
 
