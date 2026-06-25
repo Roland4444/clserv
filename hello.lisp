@@ -2823,7 +2823,7 @@
   </form>
 </body>
 </html>")
-
+;;;;;;;;;;
 ;; Хендлер для тестирования загрузки файла (GET — форма, POST — обработка)
 (hunchentoot:define-easy-handler (test-upload :uri "/test-upload") ()
   (case (hunchentoot:request-method*)
