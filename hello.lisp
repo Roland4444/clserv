@@ -22,7 +22,7 @@
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
   #:create-order-from-list   #:test-parse-items-block4  #:test-parse-items-block5
   #:extract-user-id-from-bitrix-response    #:test-extract-user-id    #:test-get-bitrix24-user-name-by-id-438
-  #:send-bitrix24-system-notify
+  #:send-bitrix24-system-notify   #:test-create-ocr-text
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -1430,14 +1430,36 @@
 
 
 
-(defun send-to-bitrix24 (ticket-id ticket-name ticket-content)
+; (defun send-to-bitrix24 (ticket-id ticket-name ticket-content)
+;   (let ((url (gethash :bitrix-chat-url *config*))
+;         (chat-id (gethash :bitrix-chat-id *config*))
+;         (glpi-base (gethash :glpi-base-url *config*)))
+;     (when (and url chat-id glpi-base)
+;       (let* ((ticket-url (format nil "~A/front/ticket.form.php?id=~A" glpi-base ticket-id))
+;              (message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Текст: ~A~%Ссылка: ~A"
+;                               ticket-id ticket-name ticket-content ticket-url))
+;              (payload `(("DIALOG_ID" . ,chat-id)
+;                         ("MESSAGE" . ,message)
+;                         ("SYSTEM" . "Y"))))
+;         (handler-case
+;             (dex:post url
+;               :content (cl-json:encode-json-to-string payload)
+;               :headers '(("Content-Type" . "application/json; charset=utf-8")))
+;           (error (e) (format t "Ошибка отправки в Битрикс24: ~A~%" e)))))))
+
+
+(defun send-to-bitrix24 (ticket-id ticket-name ticket-content &optional author-name)
+  "Отправляет сообщение в Битрикс24 с информацией о новой заявке.
+   AUTHOR-NAME – имя заявителя (например, 'Кристина Попова')."
   (let ((url (gethash :bitrix-chat-url *config*))
         (chat-id (gethash :bitrix-chat-id *config*))
         (glpi-base (gethash :glpi-base-url *config*)))
     (when (and url chat-id glpi-base)
       (let* ((ticket-url (format nil "~A/front/ticket.form.php?id=~A" glpi-base ticket-id))
-             (message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Текст: ~A~%Ссылка: ~A"
-                              ticket-id ticket-name ticket-content ticket-url))
+             (message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Автор: ~A~%Текст: ~A~%Ссылка: ~A"
+                              ticket-id ticket-name
+                              (or author-name "Не указан")
+                              ticket-content ticket-url))
              (payload `(("DIALOG_ID" . ,chat-id)
                         ("MESSAGE" . ,message)
                         ("SYSTEM" . "Y"))))
@@ -1600,25 +1622,49 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
+;   (let* ((raw-body (raw-post-data :force-text t))
+;          (parsed-data (cl-json:decode-json-from-string raw-body))
+;          (headers (headers-in*)))
+;     (log-webhook-request headers parsed-data raw-body)
+;     ;; --- Отправка в Битрикс24 при создании новой заявки ---
+;     (let ((event (cdr (assoc :event parsed-data))))
+;       (when (string= event "new")
+;         (let ((item (cdr (assoc :item parsed-data))))
+;           (when item
+;             (let ((id (cdr (assoc :id item)))
+;                   (name (cdr (assoc :name item)))
+;                   (content (cdr (assoc :content item))))
+;               (when (and id name)
+;                 (send-to-bitrix24 id name (if content (strip-html-tags content) ""))))))))
+;     (setf (return-code*) 200
+;           (content-type*) "text/plain")
+;     "OK"))
+
+
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
   (let* ((raw-body (raw-post-data :force-text t))
          (parsed-data (cl-json:decode-json-from-string raw-body))
          (headers (headers-in*)))
     (log-webhook-request headers parsed-data raw-body)
-    ;; --- Отправка в Битрикс24 при создании новой заявки ---
     (let ((event (cdr (assoc :event parsed-data))))
       (when (string= event "new")
         (let ((item (cdr (assoc :item parsed-data))))
           (when item
-            (let ((id (cdr (assoc :id item)))
-                  (name (cdr (assoc :name item)))
-                  (content (cdr (assoc :content item))))
+            (let* ((id (cdr (assoc :id item)))
+                   (name (cdr (assoc :name item)))
+                   (content (cdr (assoc :content item)))
+                   (team (cdr (assoc :team item)))
+                   (author-name
+                     (when team
+                       (loop for member in team
+                             when (string= (cdr (assoc :role member)) "requester")
+                               return (cdr (assoc :display-name member))))))
               (when (and id name)
-                (send-to-bitrix24 id name (if content (strip-html-tags content) ""))))))))
+                (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
-
 
 
 (define-easy-handler (glpi-webhook-ils :uri "/ils") ()
@@ -2441,6 +2487,21 @@
     (test-parse-items-block5)
 )
 
+;; sbcl --load hello.lisp      --eval '(hello:test-create-ocr-text)'
+
+
+(defun test-create-ocr-text ()  ;;;;    sbcl --load hello.lisp --eval '(hello:test-parse-items-block4)'
+  (let* ((text (format nil "Кабель силовой ВВГНК(А)-Е$ 3х6,0 100 | м _~%Дюбель-хомут под плоский кабель 5-10 2000~%~%Дюбель-хомут под плоский кабель 6-12 2000"))
+
+         (expected '(list ()))
+                    
+         (result (parse-items-block text)))
+    (assert (equal result expected))
+    (format t "Тест parse-items-block4 пройден!~%")
+    result))
+
+
+
 
 
 (defun test-parse-item-line ()
@@ -2894,6 +2955,7 @@
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
     (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils /dayan~%")
+    (format t "3D NAME~%")
     acceptor))    
 
 
@@ -2920,7 +2982,6 @@
   ;;   sbcl --load hello.lisp      --eval '(sb-ext:save-lisp-and-die "hello-server" :toplevel #'\''hello::main :executable t)'
 
 ;;  sbcl --load hello.lisp      --eval '(hello:main)'
-
 
 ;; sbcl --load hello.lisp      --eval '(hello:main)'
 ;;  +/r   for hot reload
