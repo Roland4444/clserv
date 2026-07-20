@@ -1449,8 +1449,6 @@
 
 
 (defun send-to-bitrix24 (ticket-id ticket-name ticket-content &optional author-name)
-  "Отправляет сообщение в Битрикс24 с информацией о новой заявке.
-   AUTHOR-NAME – имя заявителя (например, 'Кристина Попова')."
   (let ((url (gethash :bitrix-chat-url *config*))
         (chat-id (gethash :bitrix-chat-id *config*))
         (glpi-base (gethash :glpi-base-url *config*)))
@@ -1659,7 +1657,12 @@
                      (when team
                        (loop for member in team
                              when (string= (cdr (assoc :role member)) "requester")
-                               return (cdr (assoc :display-name member))))))
+                               return (or (cdr (assoc :DISPLAY--NAME member))
+                                          (when (and (cdr (assoc :FIRSTNAME member))
+                                                     (cdr (assoc :REALNAME member)))
+                                            (format nil "~A ~A"
+                                                    (cdr (assoc :FIRSTNAME member))
+                                                    (cdr (assoc :REALNAME member)))))))))
               (when (and id name)
                 (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
     (setf (return-code*) 200
