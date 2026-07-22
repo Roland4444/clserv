@@ -1489,8 +1489,9 @@
         ((vectorp data) (map 'vector #'escape-unicode-data data))
         (t data)))
 
-(defun log-webhook-request (headers json-data raw-body)
-  "Записывает заголовки и парсированные данные в лог, экранируя не-ASCII символы."
+
+(defun log-webhook-request (headers parsed-data)
+  "Записывает заголовки и данные вебхука в лог в синтаксисе Common Lisp."
   (ignore-errors
     (with-open-file (log-stream *webhook-log-file*
                                 :direction :output
@@ -1503,9 +1504,32 @@
                                   #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
         (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
         (format log-stream "Headers: ~S~%" headers)
-        (let ((escaped-data (escape-unicode-data json-data)))
-          (format log-stream "JSON Data (parsed): ~S~%" escaped-data))
-        (format log-stream "--- END WEBHOOK ---~%~%")))))
+        (format log-stream "JSON Data (S-expressions):~%")
+        (let ((*print-pretty* t)
+              (*print-right-margin* 120)
+              (*print-readably* t))
+          (pprint parsed-data log-stream))
+        (format log-stream "~%~%--- END WEBHOOK ---~%~%")))))
+
+
+
+; (defun log-webhook-request (headers json-data raw-body)
+;   "Записывает заголовки и парсированные данные в лог, экранируя не-ASCII символы."
+;   (ignore-errors
+;     (with-open-file (log-stream *webhook-log-file*
+;                                 :direction :output
+;                                 :if-exists :append
+;                                 :if-does-not-exist :create
+;                                 :external-format :utf-8)
+;       (let ((timestamp (local-time:format-timestring
+;                         nil (local-time:now)
+;                         :format '((:year 4) #\- (:month 2) #\- (:day 2)
+;                                   #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
+;         (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
+;         (format log-stream "Headers: ~S~%" headers)
+;         (let ((escaped-data (escape-unicode-data json-data)))
+;           (format log-stream "JSON Data (parsed): ~S~%" escaped-data))
+;         (format log-stream "--- END WEBHOOK ---~%~%")))))
 
 
 ; (defun log-webhook-request (headers json-data raw-body)
@@ -1675,15 +1699,13 @@
 ;     "OK"))
 
 
-
-
-
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
   (handler-case
       (let* ((raw-body (raw-post-data :force-text t))
              (parsed-data (cl-json:decode-json-from-string raw-body))
              (headers (headers-in*)))
-        (log-webhook-request headers parsed-data raw-body)   ; передаём parsed-data
+        (log-webhook-request headers parsed-data)   ; <-- передаём parsed-data
+
         (let ((event (cdr (assoc :event parsed-data))))
           (when (string= event "new")
             (let ((item (cdr (assoc :item parsed-data))))
@@ -1704,6 +1726,7 @@
                                                         (cdr (assoc :REALNAME member)))))))))
                   (when (and id name)
                     (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
+
         (setf (return-code*) 200
               (content-type*) "text/plain")
         "OK")
@@ -1711,6 +1734,13 @@
       (format t "Error in webhook handler: ~A~%" e)
       (setf (return-code*) 500)
       "Internal Server Error")))
+
+
+
+
+
+
+;;;;;LAST
 
 ; (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
 ;   (handler-case
