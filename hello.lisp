@@ -1473,19 +1473,38 @@
 (defparameter *webhook-log-file* #P"./glip-webhook.log"
   "Путь к файлу для сохранения логов вебхуков.")
 
-(defun log-webhook-request (headers json-data raw-body)
-  (with-open-file (log-stream *webhook-log-file*
-                              :direction :output
-                              :if-exists :append
-                              :if-does-not-exist :create)
-    (let ((timestamp (local-time:format-timestring
-                      nil (local-time:now)
-                      :format '((:year 4) #\- (:month 2) #\- (:day 2)
-                                #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
-      (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
-      (format log-stream "Headers: ~S~%" headers)
-      (format log-stream "JSON Data (parsed): ~S~%" json-data)
-      (format log-stream "--- END WEBHOOK ---~%~%"))))
+
+(defun log-webhook-request (headers raw-body)
+  "Записывает заголовки и сырое тело запроса в лог-файл."
+  (ignore-errors
+    (with-open-file (log-stream *webhook-log-file*
+                                :direction :output
+                                :if-exists :append
+                                :if-does-not-exist :create
+                                :external-format :utf-8)
+      (let ((timestamp (local-time:format-timestring
+                        nil (local-time:now)
+                        :format '((:year 4) #\- (:month 2) #\- (:day 2)
+                                  #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
+        (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
+        (format log-stream "Headers: ~S~%" headers)
+        (format log-stream "Raw Body: ~A~%" raw-body)
+        (format log-stream "--- END WEBHOOK ---~%~%")))))
+
+
+; (defun log-webhook-request (headers json-data raw-body)
+;   (with-open-file (log-stream *webhook-log-file*
+;                               :direction :output
+;                               :if-exists :append
+;                               :if-does-not-exist :create)
+;     (let ((timestamp (local-time:format-timestring
+;                       nil (local-time:now)
+;                       :format '((:year 4) #\- (:month 2) #\- (:day 2)
+;                                 #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
+;       (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
+;       (format log-stream "Headers: ~S~%" headers)
+;       (format log-stream "JSON Data (parsed): ~S~%" json-data)
+;       (format log-stream "--- END WEBHOOK ---~%~%"))))
 
 
 ; (defun log-webhook-request-to-file (headers json-data raw-body path-1)
@@ -1640,34 +1659,71 @@
 ;     "OK"))
 
 
+
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
-  (let* ((raw-body (raw-post-data :force-text t))
-         (parsed-data (cl-json:decode-json-from-string raw-body))
-         (headers (headers-in*)))
-    (log-webhook-request headers parsed-data raw-body)
-    (let ((event (cdr (assoc :event parsed-data))))
-      (when (string= event "new")
-        (let ((item (cdr (assoc :item parsed-data))))
-          (when item
-            (let* ((id (cdr (assoc :id item)))
-                   (name (cdr (assoc :name item)))
-                   (content (cdr (assoc :content item)))
-                   (team (cdr (assoc :team item)))
-                   (author-name
-                     (when team
-                       (loop for member in team
-                             when (string= (cdr (assoc :role member)) "requester")
-                               return (or (cdr (assoc :DISPLAY--NAME member))
-                                          (when (and (cdr (assoc :FIRSTNAME member))
-                                                     (cdr (assoc :REALNAME member)))
-                                            (format nil "~A ~A"
-                                                    (cdr (assoc :FIRSTNAME member))
-                                                    (cdr (assoc :REALNAME member)))))))))
-              (when (and id name)
-                (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
-    (setf (return-code*) 200
-          (content-type*) "text/plain")
-    "OK"))
+  (handler-case
+      (let* ((raw-body (raw-post-data :force-text t))
+             (parsed-data (cl-json:decode-json-from-string raw-body))
+             (headers (headers-in*)))
+        (log-webhook-request headers raw-body)   ; <-- теперь только headers и raw-body
+        (let ((event (cdr (assoc :event parsed-data))))
+          (when (string= event "new")
+            (let ((item (cdr (assoc :item parsed-data))))
+              (when item
+                (let* ((id (cdr (assoc :id item)))
+                       (name (cdr (assoc :name item)))
+                       (content (cdr (assoc :content item)))
+                       (team (cdr (assoc :team item)))
+                       (author-name
+                         (when team
+                           (loop for member in team
+                                 when (string= (cdr (assoc :role member)) "requester")
+                                   return (or (cdr (assoc :DISPLAY--NAME member))
+                                              (when (and (cdr (assoc :FIRSTNAME member))
+                                                         (cdr (assoc :REALNAME member)))
+                                                (format nil "~A ~A"
+                                                        (cdr (assoc :FIRSTNAME member))
+                                                        (cdr (assoc :REALNAME member)))))))))
+                  (when (and id name)
+                    (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
+        (setf (return-code*) 200
+              (content-type*) "text/plain")
+        "OK")
+    (error (e)
+      (format t "Error in webhook handler: ~A~%" e)
+      (setf (return-code*) 500)
+      "Internal Server Error")))
+
+
+;;;;;;;;;;;;;;;;;;;;;worked;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
+;   (let* ((raw-body (raw-post-data :force-text t))
+;          (parsed-data (cl-json:decode-json-from-string raw-body))
+;          (headers (headers-in*)))
+;     (log-webhook-request headers parsed-data raw-body)
+;     (let ((event (cdr (assoc :event parsed-data))))
+;       (when (string= event "new")
+;         (let ((item (cdr (assoc :item parsed-data))))
+;           (when item
+;             (let* ((id (cdr (assoc :id item)))
+;                    (name (cdr (assoc :name item)))
+;                    (content (cdr (assoc :content item)))
+;                    (team (cdr (assoc :team item)))
+;                    (author-name
+;                      (when team
+;                        (loop for member in team
+;                              when (string= (cdr (assoc :role member)) "requester")
+;                                return (or (cdr (assoc :DISPLAY--NAME member))
+;                                           (when (and (cdr (assoc :FIRSTNAME member))
+;                                                      (cdr (assoc :REALNAME member)))
+;                                             (format nil "~A ~A"
+;                                                     (cdr (assoc :FIRSTNAME member))
+;                                                     (cdr (assoc :REALNAME member)))))))))
+;               (when (and id name)
+;                 (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
+;     (setf (return-code*) 200
+;           (content-type*) "text/plain")
+;     "OK"))
 
 
 (define-easy-handler (glpi-webhook-ils :uri "/ils") ()

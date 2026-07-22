@@ -494,3 +494,14 @@ curl -X 'GET' \
 "lastName": "Иванов",
 "firstName": "Иван",
 "middleName": "Иванович"
+
+
+
+
+https://glpi.relits.ru/front/webhook.form.php?id=2
+https://glpi.upshepard.ru/app/glwbhk
+https://glpi.upshepard.ru/app/ils
+
+https://glpi.relits.ru/app/glwbhk
+https://glpi.upshepard.ru/app/ils
+https://glpi.upshepard.ru/app/dayan
