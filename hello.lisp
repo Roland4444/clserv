@@ -1474,8 +1474,23 @@
   "Путь к файлу для сохранения логов вебхуков.")
 
 
-(defun log-webhook-request (headers raw-body)
-  "Записывает заголовки и сырое тело запроса в лог-файл."
+(defun escape-unicode-string (str)
+  "Заменяет все символы с кодом > 127 на \\uXXXX."
+  (with-output-to-string (out)
+    (loop for ch across str
+          do (if (char<= ch #\~) ;; печатные ASCII
+                 (write-char ch out)
+                 (format out "\\u~4,'0X" (char-code ch))))))
+
+(defun escape-unicode-data (data)
+  "Рекурсивно обходит структуру и заменяет все строки на экранированные версии."
+  (cond ((stringp data) (escape-unicode-string data))
+        ((listp data) (mapcar #'escape-unicode-data data))
+        ((vectorp data) (map 'vector #'escape-unicode-data data))
+        (t data)))
+
+(defun log-webhook-request (headers json-data raw-body)
+  "Записывает заголовки и парсированные данные в лог, экранируя не-ASCII символы."
   (ignore-errors
     (with-open-file (log-stream *webhook-log-file*
                                 :direction :output
@@ -1488,7 +1503,8 @@
                                   #\Space (:hour 2) #\: (:min 2) #\: (:sec 2)))))
         (format log-stream "~%[~A] --- NEW WEBHOOK RECEIVED ---~%" timestamp)
         (format log-stream "Headers: ~S~%" headers)
-        (format log-stream "Raw Body: ~A~%" raw-body)
+        (let ((escaped-data (escape-unicode-data json-data)))
+          (format log-stream "JSON Data (parsed): ~S~%" escaped-data))
         (format log-stream "--- END WEBHOOK ---~%~%")))))
 
 
@@ -1660,12 +1676,14 @@
 
 
 
+
+
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
   (handler-case
       (let* ((raw-body (raw-post-data :force-text t))
              (parsed-data (cl-json:decode-json-from-string raw-body))
              (headers (headers-in*)))
-        (log-webhook-request headers raw-body)   ; <-- теперь только headers и raw-body
+        (log-webhook-request headers parsed-data raw-body)   ; передаём parsed-data
         (let ((event (cdr (assoc :event parsed-data))))
           (when (string= event "new")
             (let ((item (cdr (assoc :item parsed-data))))
@@ -1693,6 +1711,40 @@
       (format t "Error in webhook handler: ~A~%" e)
       (setf (return-code*) 500)
       "Internal Server Error")))
+
+; (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
+;   (handler-case
+;       (let* ((raw-body (raw-post-data :force-text t))
+;              (parsed-data (cl-json:decode-json-from-string raw-body))
+;              (headers (headers-in*)))
+;         (log-webhook-request headers raw-body)   ; <-- теперь только headers и raw-body
+;         (let ((event (cdr (assoc :event parsed-data))))
+;           (when (string= event "new")
+;             (let ((item (cdr (assoc :item parsed-data))))
+;               (when item
+;                 (let* ((id (cdr (assoc :id item)))
+;                        (name (cdr (assoc :name item)))
+;                        (content (cdr (assoc :content item)))
+;                        (team (cdr (assoc :team item)))
+;                        (author-name
+;                          (when team
+;                            (loop for member in team
+;                                  when (string= (cdr (assoc :role member)) "requester")
+;                                    return (or (cdr (assoc :DISPLAY--NAME member))
+;                                               (when (and (cdr (assoc :FIRSTNAME member))
+;                                                          (cdr (assoc :REALNAME member)))
+;                                                 (format nil "~A ~A"
+;                                                         (cdr (assoc :FIRSTNAME member))
+;                                                         (cdr (assoc :REALNAME member)))))))))
+;                   (when (and id name)
+;                     (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
+;         (setf (return-code*) 200
+;               (content-type*) "text/plain")
+;         "OK")
+;     (error (e)
+;       (format t "Error in webhook handler: ~A~%" e)
+;       (setf (return-code*) 500)
+;       "Internal Server Error")))
 
 
 ;;;;;;;;;;;;;;;;;;;;;worked;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
