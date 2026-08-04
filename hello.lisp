@@ -22,7 +22,7 @@
   #:test-parse-items-block__  #:test-parse-strings   #:send-to-decodezz
   #:create-order-from-list   #:test-parse-items-block4  #:test-parse-items-block5
   #:extract-user-id-from-bitrix-response    #:test-extract-user-id    #:test-get-bitrix24-user-name-by-id-438
-  #:send-bitrix24-system-notify   #:test-create-ocr-text
+  #:send-bitrix24-system-notify   #:test-create-ocr-text     #:test-parse-item-from-console
   ))
 (in-package :hello)
 (declaim (ftype (function (list t) integer) send-to-glpi))
@@ -2453,11 +2453,56 @@
           when pos do (write-string replacement out)
           while pos)))
 
-
-
-
+(defun parse-items-block-z (text)
+  "Разбирает текст, разделяя позиции по переносам строк или по '$$'."
+  (with-open-file (stream "out.txt"
+                          :direction :output
+                          :if-exists :supersede
+                          :if-does-not-exist :create
+                  )
+    (write-string text stream)
+  )
+  (let* ((parts (cl-ppcre:split "(?:\\n|\\$\\$)" text))
+         (items '())
+        )
+    (dolist (part parts)
+      (let ((trimmed (string-trim " " part)))
+        (when (not (string= trimmed ""))
+          (let ((result (parse-item-line trimmed)))
+            (when result
+              (push result items)
+            )
+          )
+        )
+      )
+      (nreverse items)
+    )
+  )
+)
 
 (defun parse-items-block (text)
+  "Разбирает многострочный текст, извлекает все позиции вида N) ... - ... .
+   Заменяет $$ на перенос строки при записи в файл и при парсинге.
+   Возвращает список результатов вызовов parse-item-line для каждой подходящей строки."
+  (let* ((text-with-newlines (cl-ppcre:regex-replace-all "\\$\\$" text (string #\Newline)))
+         (items '()))
+    ;; Запись в файл с заменой $$ на перенос
+    (with-open-file (stream "out.txt"
+                            :direction :output
+                            :if-exists :supersede
+                            :if-does-not-exist :create)
+      (write-string text-with-newlines stream))
+    ;; Парсинг
+    (with-input-from-string (stream text-with-newlines)
+      (loop for line = (read-line stream nil)
+            while line
+            for result = (parse-item-line line)
+            when result do (push result items)))
+    (nreverse items)))
+
+
+
+(defun parse-items-block-2 (text)
   "Разбирает многострочный текст, извлекает все позиции вида N) ... - ... .
    Возвращает список результатов вызовов parse-item-line для каждой подходящей строки."
     (with-open-file (stream "out.txt"
@@ -2547,7 +2592,17 @@
               (unless code (return-from parse-item-line nil))
               (list name quantity code))))))))
 
-
+(defun test-parse-item-from-console ()        ;;    sbcl --load hello.lisp --eval '(hello:test-parse-item-from-console)'
+  (format t "Введите строки вида: '1) Наименование - 10шт' (пустая строка или exit для выхода)~%")
+  (loop
+    (format t "> ")
+    (let ((line (read-line)))
+      (when (or (string= line "") (string= line "exit"))
+        (return))
+      (let ((result (parse-items-block line)))
+        (if result
+            (format t "Результат: ~A~%" result)
+            (format t "Не удалось распарсить строку: ~S~%" line))))))
 
 
 
