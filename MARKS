@@ -505,3 +505,12 @@ https://glpi.upshepard.ru/app/ils
 https://glpi.relits.ru/app/glwbhk
 https://glpi.upshepard.ru/app/ils
 https://glpi.upshepard.ru/app/dayan
+
+
+
+curl -k -X POST "https://192.168.1.136:5001/webapi/auth.cgi" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "api=SYNO.API.Auth&version=3&method=login&account=pastushkov&passwd=CXG%5E%26e%7D%2CI4Ud&session=FileStation&format=cookie"
+{"data":{"did":"fi9VwSSug61feFTIYjCJv8sW86T0V5MGjthOudX8Lxu25pcK5t-vZoMYA8zQ4Qr6
+zkoFaluKh3VG_1pmMkONqA","sid":"r4aOUQJsX8BrFQapplWZUGkWU7oFtUxFcvIXff6rpZI2WvMhu
+_vEpjDluD8HwY0INjkGVfquJQpz-T4eUxQjyw"},"success":true}

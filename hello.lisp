@@ -89,7 +89,10 @@
         ("meters" . 2)
         ("providers" . 2)
         ("cameras" . 2)
-        ("mobile" . 2)))))
+        ("mobile" . 2)))
+        
+        
+      (:glpi-bitrix-operators-notify . ())))
 
 
 (defparameter *config* (make-hash-table :test 'equal)
@@ -1724,8 +1727,41 @@
                                                 (format nil "~A ~A"
                                                         (cdr (assoc :FIRSTNAME member))
                                                         (cdr (assoc :REALNAME member)))))))))
+                  ; (when (and id name)
+                  ;   (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
+
+
                   (when (and id name)
-                    (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)))))))
+                    ;; 1. Отправка в чат (существующая логика)
+                    (send-to-bitrix24 id name (if content (strip-html-tags content) "") author-name)
+
+                    ;; 2. Отправка системных уведомлений операторам из конфига
+                    (let ((operators (gethash :glpi-bitrix-operators-notify *config*)))
+                      (when (and operators (listp operators))
+                        (let* ((glpi-base (gethash :glpi-base-url *config*))
+                               (ticket-url (format nil "~A/front/ticket.form.php?id=~A" glpi-base id))
+                               (notify-message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Автор: ~A~%Ссылка: ~A"
+                                                       id name
+                                                       (or author-name "Не указан")
+                                                       ticket-url)))
+                          (dolist (user-id operators)
+                            (send-bitrix24-system-notify user-id notify-message "GLPI_TICKET")))))))))))
+
+
+
+                  ;;;;; add notify
+                  ; (let ((operators (gethash :glpi-bitrix-operators-notify *config*)))
+                  ;     (when (and operators (listp operators))
+                  ;       (let* ((glpi-base (gethash :glpi-base-url *config*))
+                  ;              (ticket-url (format nil "~A/front/ticket.form.php?id=~A" glpi-base id))
+                  ;              (notify-message (format nil "НОВАЯ ЗАЯВКА В GLPI~%ID: ~A~%Тема: ~A~%Автор: ~A~%Ссылка: ~A"
+                  ;                                      id name
+                  ;                                      (or author-name "Не указан")
+                  ;                                      ticket-url)))
+                  ;         (dolist (user-id operators)
+                  ;           (send-bitrix24-system-notify user-id notify-message "GLPI_TICKET")))))))))))
+
+
 
         (setf (return-code*) 200
               (content-type*) "text/plain")
@@ -1829,6 +1865,13 @@
     (setf (return-code*) 200
           (content-type*) "text/plain")
     "OK"))
+
+(define-easy-handler (hello-handler :uri "/hello") ()
+      (setf (return-code*) 200
+            (content-type*) "text/plain")
+  "hello")
+
+
 
 
 ; (define-easy-handler (glpi-webhook-comm :uri "/dayan") ()
