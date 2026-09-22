@@ -1725,10 +1725,8 @@
           (#\< (write-string "\\u003c" out))
           (otherwise (write-char c out)))))))
 
+
 (defun excel-docs-html ()
-  "HTML-страница, которая внутри iframe Bitrix24 инициализирует BX24,
-   вызывает installFinish и редиректит на URL из конфига.
-   Вне iframe / без BX24 — тоже редиректит, но простым способом."
   (let ((target (js-escape (or (gethash :default-excel-link *config*)
                                "https://dev.1c-bitrix.ru/"))))
     (format nil
@@ -1736,56 +1734,117 @@
 <html>
 <head>
   <meta charset=\"UTF-8\">
-  <title>Переход к документации</title>
+  <title>Документация</title>
   <script src=\"//api.bitrix24.com/api/v1/\"></script>
   <style>
-    body,html{margin:0;padding:0;height:100%;font-family:sans-serif}
-    .center{display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;gap:1rem}
-    .spinner{width:40px;height:40px;border:4px solid #ddd;border-top-color:#0d6efd;border-radius:50%;animation:spin 1s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    a{color:#0d6efd}
+    body,html{margin:0;padding:0;height:100%;overflow:hidden}
+    iframe{width:100%;height:100%;border:0;display:block}
+    #fallback{display:none;padding:2rem;text-align:center;font-family:sans-serif}
+    #fallback a{color:#0d6efd}
   </style>
 </head>
 <body>
-  <div class=\"center\">
-    <div class=\"spinner\"></div>
-    <div>Переход к документации…</div>
-    <a id=\"manual\" href=\"~a\" target=\"_top\">Открыть вручную</a>
+  <div id=\"fallback\">
+    Не удалось встроить страницу. <a href=\"~a\" target=\"_blank\">Открыть в новой вкладке</a>.
   </div>
+  <iframe id=\"doc\" src=\"about:blank\" referrerpolicy=\"no-referrer\"></iframe>
 
   <script>
     var targetUrl = \"~a\";
 
-    function go() {
-      // target=\"_top\" — на случай, если мы внутри iframe
-      try { window.top.location.href = targetUrl; }
-      catch (e) { window.location.href = targetUrl; }
+    function loadInFrame() {
+      var frame = document.getElementById('doc');
+      // Страховка: если iframe не загрузится за 4 секунды — показать fallback
+      var failed = false;
+      var timer = setTimeout(function () {
+        failed = true;
+        frame.style.display = 'none';
+        document.getElementById('fallback').style.display = 'block';
+      }, 4000);
+
+      frame.addEventListener('load', function () {
+        if (!failed) { clearTimeout(timer); }
+      });
+
+      frame.src = targetUrl;
     }
 
     (function () {
-      // Вне iframe — BX24 не нужен, редиректим сразу
-      if (window.self === window.top) {
-        go();
-        return;
-      }
-      // SDK не загрузился — редиректим без installFinish
-      if (typeof BX24 === 'undefined') {
-        go();
-        return;
-      }
-      // Страховка от зависания BX24.init
-      var timeout = setTimeout(function () { go(); }, 3000);
-
+      if (typeof BX24 === 'undefined') { loadInFrame(); return; }
+      var timeout = setTimeout(loadInFrame, 3000);
       BX24.init(function () {
         clearTimeout(timeout);
         BX24.installFinish();
-        go();
+        loadInFrame();
       });
     })();
   </script>
 </body>
 </html>"
             target target)))
+
+
+; (defun excel-docs-html ()
+;   "HTML-страница, которая внутри iframe Bitrix24 инициализирует BX24,
+;    вызывает installFinish и редиректит на URL из конфига.
+;    Вне iframe / без BX24 — тоже редиректит, но простым способом."
+;   (let ((target (js-escape (or (gethash :default-excel-link *config*)
+;                                "https://dev.1c-bitrix.ru/"))))
+;     (format nil
+; "<!DOCTYPE html>
+; <html>
+; <head>
+;   <meta charset=\"UTF-8\">
+;   <title>Переход к документации</title>
+;   <script src=\"//api.bitrix24.com/api/v1/\"></script>
+;   <style>
+;     body,html{margin:0;padding:0;height:100%;font-family:sans-serif}
+;     .center{display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;gap:1rem}
+;     .spinner{width:40px;height:40px;border:4px solid #ddd;border-top-color:#0d6efd;border-radius:50%;animation:spin 1s linear infinite}
+;     @keyframes spin{to{transform:rotate(360deg)}}
+;     a{color:#0d6efd}
+;   </style>
+; </head>
+; <body>
+;   <div class=\"center\">
+;     <div class=\"spinner\"></div>
+;     <div>Переход к документации…</div>
+;     <a id=\"manual\" href=\"~a\" target=\"_top\">Открыть вручную</a>
+;   </div>
+
+;   <script>
+;     var targetUrl = \"~a\";
+
+;     function go() {
+;       // target=\"_top\" — на случай, если мы внутри iframe
+;       try { window.top.location.href = targetUrl; }
+;       catch (e) { window.location.href = targetUrl; }
+;     }
+
+;     (function () {
+;       // Вне iframe — BX24 не нужен, редиректим сразу
+;       if (window.self === window.top) {
+;         go();
+;         return;
+;       }
+;       // SDK не загрузился — редиректим без installFinish
+;       if (typeof BX24 === 'undefined') {
+;         go();
+;         return;
+;       }
+;       // Страховка от зависания BX24.init
+;       var timeout = setTimeout(function () { go(); }, 3000);
+
+;       BX24.init(function () {
+;         clearTimeout(timeout);
+;         BX24.installFinish();
+;         go();
+;       });
+;     })();
+;   </script>
+; </body>
+; </html>"
+;             target target)))
 
 (hunchentoot:define-easy-handler (excel-docs :uri "/excel") ()
   (let ((url (gethash :default-excel-link *config*)))
