@@ -57,6 +57,7 @@
  ;; НОВЫЙ ПАРАМЕТР: URL для отправки сообщений в чат
     (:bitrix-chat-url . "https://b24-e8jgcd.bitrix24.ru/rest/1/aa6nqwskgkhq06qd/im.message.add")
     ;; НОВЫЙ ПАРАМЕТР: ID чата (коллабы)
+    (:default-excel-link . "https://dev.1c-bitrix.ru/learning/course/index.php?COURSE_ID=43&CHAPTER_ID=04914")
     (:bitrix-chat-id . "chat385")
     (:glpi-db-socket . "/var/run/mysqld/mysqld.sock")   ; путь к сокету MySQL
     (:glpi-db-user . "root")                            ; системный пользователь (совпадает с ОС)
@@ -1702,6 +1703,105 @@
 ;     "OK"))
 
 
+
+
+           ; _____ \   /   ____  ______  ||
+;;;;;;;;;;;;||___   \ /  ||      ||      ||
+;;;;;;;;;;;;||___   /\   ||      ||----  ||______
+;;;;;;;;;;;;||___  /  \  ||____  ||____  ||______
+
+(defun js-escape (s)
+  "Экранирует строку для безопасной вставки в JS-литерал."
+  (when s
+    (with-output-to-string (out)
+      (loop for c across s do
+        (case c
+          (#\\ (write-string "\\\\" out))
+          (#\" (write-string "\\\"" out))
+          (#\' (write-string "\\'"  out))
+          (#\Newline (write-string "\\n" out))
+          (#\Return  (write-string "\\r" out))
+          (#\Tab     (write-string "\\t" out))
+          (#\< (write-string "\\u003c" out))
+          (otherwise (write-char c out)))))))
+
+(defun excel-docs-html ()
+  "HTML-страница, которая внутри iframe Bitrix24 инициализирует BX24,
+   вызывает installFinish и редиректит на URL из конфига.
+   Вне iframe / без BX24 — тоже редиректит, но простым способом."
+  (let ((target (js-escape (or (gethash :default-excel-link *config*)
+                               "https://dev.1c-bitrix.ru/"))))
+    (format nil
+"<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=\"UTF-8\">
+  <title>Переход к документации</title>
+  <script src=\"//api.bitrix24.com/api/v1/\"></script>
+  <style>
+    body,html{margin:0;padding:0;height:100%;font-family:sans-serif}
+    .center{display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;gap:1rem}
+    .spinner{width:40px;height:40px;border:4px solid #ddd;border-top-color:#0d6efd;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    a{color:#0d6efd}
+  </style>
+</head>
+<body>
+  <div class=\"center\">
+    <div class=\"spinner\"></div>
+    <div>Переход к документации…</div>
+    <a id=\"manual\" href=\"~a\" target=\"_top\">Открыть вручную</a>
+  </div>
+
+  <script>
+    var targetUrl = \"~a\";
+
+    function go() {
+      // target=\"_top\" — на случай, если мы внутри iframe
+      try { window.top.location.href = targetUrl; }
+      catch (e) { window.location.href = targetUrl; }
+    }
+
+    (function () {
+      // Вне iframe — BX24 не нужен, редиректим сразу
+      if (window.self === window.top) {
+        go();
+        return;
+      }
+      // SDK не загрузился — редиректим без installFinish
+      if (typeof BX24 === 'undefined') {
+        go();
+        return;
+      }
+      // Страховка от зависания BX24.init
+      var timeout = setTimeout(function () { go(); }, 3000);
+
+      BX24.init(function () {
+        clearTimeout(timeout);
+        BX24.installFinish();
+        go();
+      });
+    })();
+  </script>
+</body>
+</html>"
+            target target)))
+
+(hunchentoot:define-easy-handler (excel-docs :uri "/excel") ()
+  (let ((url (gethash :default-excel-link *config*)))
+    (if url
+        (progn
+          (setf (hunchentoot:content-type*) "text/html; charset=utf-8")
+          (excel-docs-html))
+        (progn
+          (setf (hunchentoot:content-type*) "text/plain; charset=utf-8")
+          (setf (hunchentoot:return-code*) 500)
+          "default-excel-link не задан в конфиге"))))
+
+
+
+
+
 (define-easy-handler (glpi-webhook :uri "/glwbhk") ()
   (handler-case
       (let* ((raw-body (raw-post-data :force-text t))
@@ -3193,7 +3293,7 @@
     (hunchentoot:start acceptor)
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
-    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils /dayan~%")
+    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils /dayan  /excel~%")
     (format t "3D NAME~%")
     acceptor))    
 
