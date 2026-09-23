@@ -3192,7 +3192,20 @@
       (format t "Тест пройден.~%")
       t)))        
 
-
+(define-easy-handler (excel-roles-handler :uri "/excel-roles") ()
+  (setf (return-code*) 200
+        (content-type*) "application/json; charset=utf-8")
+  (let ((roles (gethash :excel-roles *config*)))
+    (if roles
+        (json:encode-json-alist-to-string
+         ;; cl-json требует строковых ключей для объектов → преобразуем
+         (mapcar (lambda (pair)
+                   (cons (princ-to-string (car pair))  ; ключ → строка
+                         (cdr pair)))                  ; значение — список чисел
+                 roles))
+        ;; на случай, если параметра вдруг нет в конфиге
+        (json:encode-json-alist-to-string
+         '(("error" . "excel-roles not configured"))))))
 
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
