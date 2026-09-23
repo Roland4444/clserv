@@ -93,7 +93,20 @@
         ("mobile" . 2)))
         
         
-      (:glpi-bitrix-operators-notify . ())))
+      (:glpi-bitrix-operators-notify . ())
+      
+          (:excel-roles . (
+                              (1 . (1 2))
+                              (2 . (3 55 654))
+                              (3 . (2 4 6))
+                              (4 . (1 6 8))
+                          )
+          )
+   )
+)
+      
+      
+    
 
 
 (defparameter *config* (make-hash-table :test 'equal)
