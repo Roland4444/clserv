@@ -511,7 +511,7 @@
 ;             (cl-json:encode-json-to-string `((:error . ,(format nil "~A" e))))))
 ;         (progn
 ;           (setf (hunchentoot:return-code*) 400)
-;           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))
+;           (cl-json:encode-json-to-string '((:error . "Missing parameters")))))))     ;;;;
 
 
 

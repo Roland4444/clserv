@@ -514,3 +514,33 @@ curl -k -X POST "https://192.168.1.136:5001/webapi/auth.cgi" \
 {"data":{"did":"fi9VwSSug61feFTIYjCJv8sW86T0V5MGjthOudX8Lxu25pcK5t-vZoMYA8zQ4Qr6
 zkoFaluKh3VG_1pmMkONqA","sid":"r4aOUQJsX8BrFQapplWZUGkWU7oFtUxFcvIXff6rpZI2WvMhu
 _vEpjDluD8HwY0INjkGVfquJQpz-T4eUxQjyw"},"success":true}
+
+
+
+
+
+
+
+$ cqlsh
+Connected to  at 127.0.0.1:9042
+[cqlsh 6.0.34 | Scylla 2026.3.1-0.20260904.97cbf7898aae | CQL spec 3.3.1 | Native protocol v4]
+Use HELP for help.
+cqlsh> CREATE KEYSPACE RES;
+cqlsh> USE RES;
+cqlsh:res> CREATE TABLE simple (id int PRIMARY KEY, param text, value decimal, date TIMESTAMP, description text);
+cqlsh:res> select * from simple;
+
+ id | date | description | param | value
+----+------+-------------+-------+-------
+
+(0 rows)
+cqlsh:res>
+
+
+
+
+
+
+
+
+
