@@ -1465,6 +1465,10 @@
 ;           (error (e) (format t "Ошибка отправки в Битрикс24: ~A~%" e)))))))
 
 
+
+
+
+
 (defun send-to-bitrix24 (ticket-id ticket-name ticket-content &optional author-name)
   (let ((url (gethash :bitrix-chat-url *config*))
         (chat-id (gethash :bitrix-chat-id *config*))
@@ -1795,6 +1799,25 @@
 </body>
 </html>"
             target target)))
+
+;;;;;;;;;;;        ___             ___
+;;;;;;;;;;;  |\/  ||__||  ||     ||
+;;;;;;;;;;;  |\\  ||  ||  ||___  ||____
+
+
+
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
 
 
 ; (defun excel-docs-html ()
