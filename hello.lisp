@@ -102,6 +102,7 @@
                               (4 . (1 6 8))
                           ))
       (:shared-directory . "/srv/shared/")     
+      (:url-prefix . "/lisp")
    )
 )
       
@@ -3076,6 +3077,34 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+(defun get-url-prefix ()
+  (let ((prefix (or (gethash :url-prefix *config*) "")))
+    (cond
+      ((string= prefix "") "")
+      ((char= (char prefix (1- (length prefix))) #\/)
+       (subseq prefix 0 (1- (length prefix))))
+      (t prefix))))
+
+(defun make-app-url (path)
+  (let ((prefix (get-url-prefix)))
+    (cond
+      ((string= prefix "")
+       path)
+
+      ((char= (char path 0) #\/)
+       (concatenate 'string prefix path))
+
+      (t
+       (concatenate 'string prefix "/" path)))))
+
+
+
+
+
+
+
+
 (defun rfc5987-encode (string)
   "Кодирует строку в UTF-8 percent-encoding для filename*=."
   (let ((octets
@@ -3157,6 +3186,7 @@
 
 
 (define-easy-handler (files-handler :uri "/files") ()
+
   (setf (return-code*) 200
         (content-type*) "text/html; charset=utf-8")
 
@@ -3165,12 +3195,20 @@
 
     (with-output-to-string (out)
 
+      ;; -------------------------------------------------------
+      ;; Начало HTML
+      ;; -------------------------------------------------------
+
       (write-string
        "<!DOCTYPE html>
 <html lang=\"ru\">
+
 <head>
+
 <meta charset=\"UTF-8\">
-<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+
+<meta name=\"viewport\"
+      content=\"width=device-width, initial-scale=1.0\">
 
 <title>Файлы</title>
 
@@ -3237,27 +3275,34 @@ h1 {
 "
        out)
 
+
+      ;; -------------------------------------------------------
+      ;; Содержимое
+      ;; -------------------------------------------------------
+
       (cond
 
-        ;; Каталог вообще не задан
+        ;; Каталог не указан
         ((null directory)
 
          (write-string
           "<div class=\"empty\">
-Каталог :shared-directory не указан в конфигурации.
+Каталог для файлов не указан в конфигурации.
 </div>"
           out))
+
 
         ;; Каталог не существует
         ((not (probe-file directory))
 
          (write-string
           "<div class=\"empty\">
-Каталог не существует.
+Каталог с файлами не существует.
 </div>"
           out))
 
-        ;; Файлов нет
+
+        ;; Каталог пустой
         ((null files)
 
          (write-string
@@ -3266,25 +3311,41 @@ h1 {
 </div>"
           out))
 
-        ;; Вывод файлов
+
+        ;; -----------------------------------------------------
+        ;; Список файлов
+        ;; -----------------------------------------------------
+
         (t
 
          (dolist (pathname files)
 
-           (let ((filename (file-namestring pathname)))
+           (let* ((filename
+                    (file-namestring pathname))
+
+                  (download-url
+                    (make-app-url "/download")))
 
              (format out
                      "<div class=\"file\">
-<a href=\"/download?file=~A\">~A</a>
+<a href=\"~A?file=~A\">~A</a>
 </div>~%"
+                     download-url
                      (hunchentoot:url-encode filename)
                      (html-escape filename))))))
 
+
+      ;; -------------------------------------------------------
+      ;; Конец HTML
+      ;; -------------------------------------------------------
+
       (write-string
        "</div>
+
 </div>
 
 </body>
+
 </html>"
        out))))
 
