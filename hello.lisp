@@ -100,8 +100,8 @@
                               (2 . (3 55 654))
                               (3 . (2 4 6))
                               (4 . (1 6 8))
-                          )
-          )
+                          ))
+      (:shared-directory . "/srv/shared/")     
    )
 )
       
@@ -3076,8 +3076,262 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun rfc5987-encode (string)
+  "Кодирует строку в UTF-8 percent-encoding для filename*=."
+  (let ((octets
+          (flexi-streams:string-to-octets
+           string
+           :external-format :utf-8)))
+
+    (with-output-to-string (out)
+      (loop for byte across octets
+            for char = (code-char byte)
+            do
+               (if (or
+                    ;; A-Z
+                    (and (>= byte 65) (<= byte 90))
+
+                    ;; a-z
+                    (and (>= byte 97) (<= byte 122))
+
+                    ;; 0-9
+                    (and (>= byte 48) (<= byte 57))
+
+                    ;; допустимые RFC5987 символы
+                    (find char "!#$&+-.^_`|~"
+                          :test #'char=))
+
+                   (write-char char out)
+
+                   (format out "%~2,'0X" byte))))))
 
 
+
+
+
+(defun get-shared-directory ()
+  "Возвращает каталог для раздачи файлов из конфигурации."
+  (let ((directory (gethash :shared-directory *config*)))
+    (when directory
+      (uiop:ensure-directory-pathname directory))))
+
+
+(defun get-shared-files ()
+  "Возвращает список файлов из каталога :shared-directory."
+  (let ((directory (get-shared-directory)))
+    (if (and directory
+             (probe-file directory))
+        (sort
+         (uiop:directory-files directory)
+         #'string-lessp
+         :key #'file-namestring)
+        nil)))
+
+
+(defun html-escape (text)
+  "Экранирует специальные HTML-символы."
+  (with-output-to-string (out)
+    (loop for char across text
+          do
+             (case char
+               (#\< (write-string "&lt;" out))
+               (#\> (write-string "&gt;" out))
+               (#\& (write-string "&amp;" out))
+               (#\" (write-string "&quot;" out))
+               (#\' (write-string "&#39;" out))
+               (otherwise
+                (write-char char out))))))
+
+
+(defun find-shared-file (filename)
+  "Ищет файл только внутри :shared-directory.
+
+Не позволяет использовать ../../ для выхода из каталога."
+  (when filename
+    (find filename
+          (get-shared-files)
+          :test #'string=
+          :key #'file-namestring)))
+
+
+
+
+(define-easy-handler (files-handler :uri "/files") ()
+  (setf (return-code*) 200
+        (content-type*) "text/html; charset=utf-8")
+
+  (let ((directory (get-shared-directory))
+        (files (get-shared-files)))
+
+    (with-output-to-string (out)
+
+      (write-string
+       "<!DOCTYPE html>
+<html lang=\"ru\">
+<head>
+<meta charset=\"UTF-8\">
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+
+<title>Файлы</title>
+
+<style>
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f5f5;
+    margin: 0;
+    padding: 40px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+h1 {
+    margin-bottom: 25px;
+}
+
+.files {
+    background: white;
+    border-radius: 10px;
+    padding: 10px 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.file {
+    padding: 15px 5px;
+    border-bottom: 1px solid #eeeeee;
+}
+
+.file:last-child {
+    border-bottom: none;
+}
+
+.file a {
+    color: #0066cc;
+    text-decoration: none;
+    font-size: 17px;
+}
+
+.file a:hover {
+    text-decoration: underline;
+}
+
+.empty {
+    padding: 20px 5px;
+    color: #777777;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class=\"container\">
+
+<h1>Доступные файлы</h1>
+
+<div class=\"files\">
+"
+       out)
+
+      (cond
+
+        ;; Каталог вообще не задан
+        ((null directory)
+
+         (write-string
+          "<div class=\"empty\">
+Каталог :shared-directory не указан в конфигурации.
+</div>"
+          out))
+
+        ;; Каталог не существует
+        ((not (probe-file directory))
+
+         (write-string
+          "<div class=\"empty\">
+Каталог не существует.
+</div>"
+          out))
+
+        ;; Файлов нет
+        ((null files)
+
+         (write-string
+          "<div class=\"empty\">
+Файлов нет.
+</div>"
+          out))
+
+        ;; Вывод файлов
+        (t
+
+         (dolist (pathname files)
+
+           (let ((filename (file-namestring pathname)))
+
+             (format out
+                     "<div class=\"file\">
+<a href=\"/download?file=~A\">~A</a>
+</div>~%"
+                     (hunchentoot:url-encode filename)
+                     (html-escape filename))))))
+
+      (write-string
+       "</div>
+</div>
+
+</body>
+</html>"
+       out))))
+
+
+(define-easy-handler (download-handler :uri "/download")
+    (file)
+
+  (unless file
+    (setf (return-code*) 400
+          (content-type*) "text/plain; charset=utf-8")
+
+    (return-from download-handler
+      "Не указан параметр file."))
+
+  (let ((pathname (find-shared-file file)))
+
+    (unless pathname
+      (setf (return-code*) 404
+            (content-type*) "text/plain; charset=utf-8")
+
+      (return-from download-handler
+        "Файл не найден."))
+
+    (let* ((filename (file-namestring pathname))
+
+           ;; Для старых браузеров даём безопасное ASCII-имя.
+           ;; Расширение сохраняем.
+           (extension
+             (pathname-type pathname))
+
+           (fallback-name
+             (if extension
+                 (format nil "download.~A" extension)
+                 "download"))
+
+           ;; Настоящее имя кодируем в UTF-8
+           (encoded-name
+             (rfc5987-encode filename)))
+
+      (setf
+       (header-out "Content-Disposition")
+       (format nil
+               "attachment; filename=\"~A\"; filename*=UTF-8''~A"
+               fallback-name
+               encoded-name))
+
+      (hunchentoot:handle-static-file pathname))))
 
 ;; Вспомогательная функция для получения сессии GLPI (теперь принимает параметры)
 (defun get-glpi-session-token (base app-token user-token)
