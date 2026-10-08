@@ -68,6 +68,7 @@
     (:bitrix-enabled . nil)
     (:glpi-enabled . nil)
     (:glpi-base-url . "https://glpi.upshepard.ru")
+
     (:processing-enabled . nil)
     ;; Общее значение для аудиторов (может быть списком или числом)
     (:bitrix-auditors . (26))
@@ -101,6 +102,7 @@
                               (3 . (2 4 6))
                               (4 . (1 6 8))
                           ))
+          (:jk-calculator-users . ((1  336)))                
       (:shared-directory . "/srv/shared/")     
       (:url-prefix . "/lisp")
    )
@@ -3530,10 +3532,10 @@ h1 {
       (format t "Тест пройден.~%")
       t)))        
 
-(define-easy-handler (excel-roles-handler :uri "/excel-roles") ()
+(define-easy-handler (excel-roles-handler :uri "/node-roles") ()
   (setf (return-code*) 200
         (content-type*) "application/json; charset=utf-8")
-  (let ((roles (gethash :excel-roles *config*)))
+  (let ((roles (gethash :node-roles *config*)))
     (if roles
         (json:encode-json-alist-to-string
          ;; cl-json требует строковых ключей для объектов → преобразуем
@@ -3544,6 +3546,22 @@ h1 {
         ;; на случай, если параметра вдруг нет в конфиге
         (json:encode-json-alist-to-string
          '(("error" . "excel-roles not configured"))))))
+
+
+(define-easy-handler (jk-calculator-users-handler :uri "/jk-calculator-users") ()
+  (setf (return-code*) 200
+      (content-type*) "application/json; charset=utf-8")
+  (let ((users (gethash :jk-calculator-users *config*)))
+      (if users 
+      (json:encode-json-to-string users)
+      (progn 
+        (setf (return-code)  500)
+        (json:encode-json-alist-to-string)
+          '((:error . "jk-calculator-users not configured"))))  
+  
+  )
+
+)
 
 
 (hunchentoot:define-easy-handler (upload-file :uri "/upload-file" :default-request-type :post) ()
@@ -3716,7 +3734,7 @@ h1 {
     (hunchentoot:start acceptor)
     (format t "Server running at http://localhost:~d/~%" port)
     (format t "Static files served from /static/~%")
-    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils /dayan  /excel~%")
+    (format t "Endpoints: /, /up, /lnk, /updatelnk, /chat, /glwbhk, /ils /dayan  /excel    /jk-calculator-users   ~%")
     (format t "3D NAME~%")
     acceptor))    
 
